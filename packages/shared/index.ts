@@ -12,5 +12,8 @@ export interface GameState {
 
 export interface Move {
   type: string;
+  playerId: string;
   data: any;
 }
+
+export { type GameEngine, GameError } from './engine.js';

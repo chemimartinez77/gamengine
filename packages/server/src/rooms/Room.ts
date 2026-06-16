@@ -1,10 +1,12 @@
-import type { GameState, Player } from '@gamengine/shared';
+import type { GameState, GameEngine, Move, Player } from '@gamengine/shared';
+import { GameError } from '@gamengine/shared';
 
 export type RoomStatus = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
 export class Room {
   readonly roomId: string;
   private status: RoomStatus = 'LOBBY';
+  private engine: GameEngine | null = null;
   private gameState: GameState | null = null;
   private playerMap: Map<string, Player> = new Map(); // socketId → Player
 
@@ -26,16 +28,24 @@ export class Room {
     return this.status;
   }
 
-  // Transitions LOBBY → PLAYING and initialises GameState from current lobby players.
-  // Called externally when all players are ready; game-specific board setup happens after.
-  startGame(): void {
+  // Transitions LOBBY → PLAYING. Delegates initial state creation to the engine.
+  startGame(engine: GameEngine): void {
+    this.engine = engine;
     this.status = 'PLAYING';
-    this.gameState = {
-      players: [...this.playerMap.values()],
-      turn: 0,
-      board: null,
-      winner: null,
-    };
+    this.gameState = engine.createInitialState([...this.playerMap.values()]);
+  }
+
+  // Delegates move validation and application to the engine; advances status on win.
+  applyMove(move: Move): GameState {
+    if (!this.engine || !this.gameState) {
+      throw new GameError('GAME_NOT_STARTED');
+    }
+    const newState = this.engine.processMove(this.gameState, move);
+    this.gameState = newState;
+    if (newState.winner !== null) {
+      this.status = 'FINISHED';
+    }
+    return newState;
   }
 
   getGameState(): Readonly<GameState> | null {

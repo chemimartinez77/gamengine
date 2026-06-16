@@ -1,10 +1,12 @@
 import type { Server, Socket } from 'socket.io';
-import type { GameState, Player } from '@gamengine/shared';
+import type { GameState, Move, Player } from '@gamengine/shared';
 
 export interface ServerToClientEvents {
   room_joined:   (roomId: string, gameState: GameState | null) => void;
   player_joined: (player: Player) => void;
   player_left:   (playerId: string) => void;
+  game_started:  (gameState: GameState) => void;
+  state_updated: (gameState: GameState) => void;
   error:         (message: string) => void;
 }
 
@@ -16,6 +18,10 @@ export interface ClientToServerEvents {
   join_room: (
     roomId: string,
     player: Player,
+    callback: (ok: boolean, error?: string) => void
+  ) => void;
+  send_move: (
+    move: Move,
     callback: (ok: boolean, error?: string) => void
   ) => void;
 }

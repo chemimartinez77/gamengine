@@ -1,5 +1,6 @@
 import type { TypedServer, TypedSocket } from '../socket.types.js';
 import type { RoomManager } from '../rooms/index.js';
+import { GameError } from '@gamengine/shared';
 
 export function registerHandlers(
   io: TypedServer,
@@ -33,6 +34,29 @@ export function registerHandlers(
     socket.to(roomId).emit('player_joined', player);
     socket.emit('room_joined', roomId, room.getGameState());
     callback(true);
+  });
+
+  socket.on('send_move', (move, callback) => {
+    const { playerId, roomId } = socket.data;
+    if (!roomId || !playerId) {
+      callback(false, 'NOT_IN_ROOM');
+      return;
+    }
+    const room = roomManager.getRoom(roomId);
+    if (!room || room.getStatus() !== 'PLAYING') {
+      callback(false, 'GAME_NOT_ACTIVE');
+      return;
+    }
+    // Security: overwrite playerId with the trusted server-side identity,
+    // ignoring whatever the client sent in the payload.
+    const trustedMove = { ...move, playerId };
+    try {
+      const newState = room.applyMove(trustedMove);
+      io.to(roomId).emit('state_updated', newState);
+      callback(true);
+    } catch (err) {
+      callback(false, err instanceof GameError ? err.message : 'INTERNAL_ERROR');
+    }
   });
 
   socket.on('disconnect', () => {
