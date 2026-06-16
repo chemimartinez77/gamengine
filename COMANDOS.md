@@ -7,7 +7,7 @@ Este archivo sirve como guía rápida de los comandos de consola más utilizados
 | Comando | Sistema | ¿Qué hace? |
 | :--- | :--- | :--- |
 | `tree /f` | Windows | Muestra el árbol gráfico de todas las carpetas y sus archivos (¡ojo! lee todo). |
-| `Get-ChildItem -Recurse -Exclude "node_modules", ".git" | Resolve-Path -Relative` | PowerShell | Muestra de forma limpia solo tus archivos del proyecto, ignorando carpetas pesadas. |
+| `Get-ChildItem -Recurse | Where-Object { $_.FullName -notmatch '\\node_modules\\' -and $_.FullName -notmatch '\\\.git\\' } | Resolve-Path -Relative` | PowerShell | Muestra de forma limpia solo tus archivos del proyecto, ignorando carpetas pesadas. |
 | `clear` o `cls` | Ambos | Limpia la pantalla de la terminal para que no esté saturada. |
 
 ## 🐙 Control de Versiones (Git)
