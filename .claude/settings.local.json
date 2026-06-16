@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Proyectos\\\\gamengine\\\\packages\\\\server\\\\src\\\\rooms\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Proyectos\\\\gamengine\\\\packages\\\\server\\\\src\\\\events\")",
+      "PowerShell(cd d:\\\\Proyectos\\\\gamengine; $proc = Start-Process -FilePath \"node\" -ArgumentList \"packages/server/dist/index.js\" -PassThru -NoNewWindow; Start-Sleep -Seconds 2; if \\(-not $proc.HasExited\\) { Write-Output \"Server running with PID $\\($proc.Id\\)\"; $proc.Kill\\(\\) } else { Write-Output \"Server exited with code $\\($proc.ExitCode\\)\" })"
+    ]
+  }
+}
