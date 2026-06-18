@@ -17,11 +17,17 @@ export class RoomManager {
     return RoomManager.instance;
   }
 
-  createRoom(): Room {
+  createRoom(roomName: string): Room {
     const roomId = this.generateId();
-    const room = new Room(roomId);
+    const room = new Room(roomId, roomName);
     this.rooms.set(roomId, room);
     return room;
+  }
+
+  getRoomList() {
+    return [...this.rooms.values()]
+      .filter((r) => r.getStatus() === 'LOBBY')
+      .map((r) => r.toSummary());
   }
 
   getRoom(roomId: string): Room | undefined {

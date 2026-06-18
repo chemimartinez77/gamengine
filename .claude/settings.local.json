@@ -3,7 +3,16 @@
     "allow": [
       "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Proyectos\\\\gamengine\\\\packages\\\\server\\\\src\\\\rooms\")",
       "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Proyectos\\\\gamengine\\\\packages\\\\server\\\\src\\\\events\")",
-      "PowerShell(cd d:\\\\Proyectos\\\\gamengine; $proc = Start-Process -FilePath \"node\" -ArgumentList \"packages/server/dist/index.js\" -PassThru -NoNewWindow; Start-Sleep -Seconds 2; if \\(-not $proc.HasExited\\) { Write-Output \"Server running with PID $\\($proc.Id\\)\"; $proc.Kill\\(\\) } else { Write-Output \"Server exited with code $\\($proc.ExitCode\\)\" })"
+      "PowerShell(cd d:\\\\Proyectos\\\\gamengine; $proc = Start-Process -FilePath \"node\" -ArgumentList \"packages/server/dist/index.js\" -PassThru -NoNewWindow; Start-Sleep -Seconds 2; if \\(-not $proc.HasExited\\) { Write-Output \"Server running with PID $\\($proc.Id\\)\"; $proc.Kill\\(\\) } else { Write-Output \"Server exited with code $\\($proc.ExitCode\\)\" })",
+      "Bash(curl -v \"http://localhost:3000/socket.io/?EIO=4&transport=websocket\" -H \"Origin: http://localhost:5173\" -H \"Connection: Upgrade\" -H \"Upgrade: websocket\" -H \"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\" -H \"Sec-WebSocket-Version: 13\")",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(taskkill /PID 25256 /F)",
+      "PowerShell(Stop-Process -Id 25256 -Force)",
+      "Bash(npx tsc *)"
     ]
   }
 }

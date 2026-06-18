@@ -5,9 +5,18 @@ import { RoomManager } from './rooms/index.js';
 import { registerHandlers } from './events/index.js';
 
 const httpServer = http.createServer();
+const CLIENT_ORIGIN = process.env['CLIENT_ORIGIN'] ?? 'http://localhost:5173';
+
 const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>(
   httpServer,
-  { transports: ['websocket'] }
+  {
+    transports: ['websocket'],
+    cors: {
+      origin: CLIENT_ORIGIN,
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
+  }
 );
 
 const roomManager = RoomManager.getInstance();
