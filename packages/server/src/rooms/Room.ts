@@ -1,22 +1,31 @@
-import type { GameState, GameEngine, Move, Player, RoomSummary } from '@gamengine/shared';
-import { GameError } from '@gamengine/shared';
+import type { GameState, GameEngine, GameMove, Move, Player, RoomSummary, GameType } from '@gamengine/shared';
+import { GameError, ticTacToeEngine, mancalaEngine } from '@gamengine/shared';
 
 export type RoomStatus = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
 const MAX_PLAYERS = 4;
 
+const ENGINE_REGISTRY: Record<GameType, GameEngine> = {
+  TIC_TAC_TOE: ticTacToeEngine,
+  MANCALA:     mancalaEngine,
+};
+
 export class Room {
-  readonly roomId: string;
+  readonly roomId:   string;
   readonly roomName: string;
-  private status: RoomStatus = 'LOBBY';
-  private engine: GameEngine | null = null;
+  private currentGameType: GameType;
+  private status:    RoomStatus = 'LOBBY';
+  private engine:    GameEngine | null = null;
   private gameState: GameState | null = null;
   private playerMap: Map<string, Player> = new Map(); // socketId → Player
   private hostSocketId: string | null = null;
+  private rematchVotes: Set<string> = new Set();
+  private actionLog: GameMove[] = [];
 
-  constructor(roomId: string, roomName: string) {
-    this.roomId = roomId;
-    this.roomName = roomName;
+  constructor(roomId: string, roomName: string, gameType: GameType) {
+    this.roomId          = roomId;
+    this.roomName        = roomName;
+    this.currentGameType = gameType;
   }
 
   addPlayer(socketId: string, player: Player): void {
@@ -30,6 +39,7 @@ export class Room {
   removePlayer(socketId: string): { player: Player | undefined; newHostPlayerId: string | null } {
     const player = this.playerMap.get(socketId);
     this.playerMap.delete(socketId);
+    this.rematchVotes.delete(socketId);
 
     let newHostPlayerId: string | null = null;
 
@@ -56,10 +66,23 @@ export class Room {
     return this.status;
   }
 
-  startGame(engine: GameEngine): void {
-    this.engine = engine;
-    this.status = 'PLAYING';
-    this.gameState = engine.createInitialState([...this.playerMap.values()]);
+  getCurrentGameType(): GameType {
+    return this.currentGameType;
+  }
+
+  startGame(): void {
+    const engine     = ENGINE_REGISTRY[this.currentGameType];
+    this.engine      = engine;
+    this.status      = 'PLAYING';
+    this.actionLog   = [];
+    this.rematchVotes.clear();
+    this.gameState   = engine.createInitialState([...this.playerMap.values()]);
+  }
+
+  // Returns true when all players have voted — caller should start the rematch.
+  voteRematch(socketId: string): boolean {
+    this.rematchVotes.add(socketId);
+    return this.rematchVotes.size >= this.playerMap.size;
   }
 
   applyMove(move: Move): GameState {
@@ -68,6 +91,7 @@ export class Room {
     }
     const newState = this.engine.processMove(this.gameState, move);
     this.gameState = newState;
+    this.actionLog.push({ timestamp: Date.now(), playerId: move.playerId, data: move.data });
     if (newState.winner !== null) {
       this.status = 'FINISHED';
     }
@@ -76,6 +100,10 @@ export class Room {
 
   getGameState(): Readonly<GameState> | null {
     return this.gameState;
+  }
+
+  getActionLog(): readonly GameMove[] {
+    return this.actionLog;
   }
 
   getPlayers(): Player[] {
@@ -103,12 +131,13 @@ export class Room {
 
   toSummary(): RoomSummary {
     return {
-      roomId:      this.roomId,
-      roomName:    this.roomName,
-      playerCount: this.playerMap.size,
-      maxPlayers:  MAX_PLAYERS,
-      hostId:      this.getHostPlayerId() ?? '',
-      status:      this.status,
+      roomId:          this.roomId,
+      roomName:        this.roomName,
+      playerCount:     this.playerMap.size,
+      maxPlayers:      MAX_PLAYERS,
+      hostId:          this.getHostPlayerId() ?? '',
+      status:          this.status,
+      currentGameType: this.currentGameType,
     };
   }
 }

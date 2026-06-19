@@ -1,3 +1,5 @@
+export type GameType = 'TIC_TAC_TOE' | 'MANCALA';
+
 export interface Player {
   id: string;
   name: string;
@@ -6,7 +8,7 @@ export interface Player {
 export interface GameState {
   players: Player[];
   turn: number;
-  board: any; // 'any' de momento, cada juego tendrá su propia estructura aquí
+  board: any; // game-specific structure
   winner: string | null;
 }
 
@@ -16,36 +18,52 @@ export interface Move {
   data: any;
 }
 
+export interface GameMove {
+  timestamp: number;
+  playerId:  string;
+  data:      unknown;
+}
+
 export { type GameEngine, GameError } from './engine.js';
+export { ticTacToeEngine } from './tictactoe.js';
+export { mancalaEngine } from './mancala.js';
 
 // Socket.IO event contracts — shared between server and client
 export interface ServerToClientEvents {
-  room_joined:    (roomId: string, gameState: GameState | null) => void;
-  player_joined:  (player: Player) => void;
-  player_left:    (playerId: string) => void;
-  host_changed:   (newHostId: string) => void;
-  game_started:   (gameState: GameState) => void;
-  state_updated:  (gameState: GameState) => void;
-  rooms_updated:  (rooms: RoomSummary[]) => void;
-  error:          (message: string) => void;
+  room_joined:        (roomId: string, gameState: GameState | null, gameType: GameType) => void;
+  player_joined:      (player: Player) => void;
+  player_left:        (playerId: string) => void;
+  host_changed:       (newHostId: string) => void;
+  game_started:       (gameState: GameState) => void;
+  state_updated:      (gameState: GameState) => void;
+  rooms_updated:      (rooms: RoomSummary[]) => void;
+  rematch_requested:  (playerId: string) => void;
+  error:              (message: string) => void;
 }
 
 export interface ClientToServerEvents {
   create_room: (
-    roomName: string,
-    player: Player,
-    callback: (roomId: string) => void
+    roomName:  string,
+    gameType:  GameType,
+    player:    Player,
+    callback:  (roomId: string) => void
   ) => void;
   join_room: (
-    roomId: string,
-    player: Player,
+    roomId:   string,
+    player:   Player,
     callback: (ok: boolean, error?: string) => void
   ) => void;
   leave_room: (
     callback: (ok: boolean) => void
   ) => void;
+  start_game: (
+    callback: (ok: boolean, error?: string) => void
+  ) => void;
   send_move: (
-    move: Move,
+    move:     Move,
+    callback: (ok: boolean, error?: string) => void
+  ) => void;
+  request_rematch: (
     callback: (ok: boolean, error?: string) => void
   ) => void;
 }
@@ -56,10 +74,11 @@ export interface SocketData {
 }
 
 export interface RoomSummary {
-  roomId:      string;
-  roomName:    string;
-  playerCount: number;
-  maxPlayers:  number;
-  hostId:      string;
-  status:      'LOBBY' | 'PLAYING' | 'FINISHED';
+  roomId:          string;
+  roomName:        string;
+  playerCount:     number;
+  maxPlayers:      number;
+  hostId:          string;
+  status:          'LOBBY' | 'PLAYING' | 'FINISHED';
+  currentGameType: GameType;
 }

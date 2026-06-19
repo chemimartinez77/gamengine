@@ -1,5 +1,6 @@
 import type { TypedServer, TypedSocket } from '../socket.types.js';
 import type { RoomManager } from '../rooms/index.js';
+import type { GameType } from '@gamengine/shared';
 import { GameError } from '@gamengine/shared';
 
 function broadcastRooms(io: TypedServer, roomManager: RoomManager): void {
@@ -42,7 +43,7 @@ export function registerHandlers(
 ): void {
   socket.emit('rooms_updated', roomManager.getRoomList());
 
-  socket.on('create_room', (roomName, player, callback) => {
+  socket.on('create_room', (roomName, gameType, player, callback) => {
     const sanitizedName = roomName.trim();
     const sanitizedNick = player.name.trim();
     if (!sanitizedName || !sanitizedNick) {
@@ -50,12 +51,12 @@ export function registerHandlers(
       return;
     }
     const sanitizedPlayer = { ...player, name: sanitizedNick };
-    const room = roomManager.createRoom(sanitizedName);
+    const room = roomManager.createRoom(sanitizedName, gameType);
     room.addPlayer(socket.id, sanitizedPlayer);
     socket.join(room.roomId);
     socket.data.playerId = sanitizedPlayer.id;
     socket.data.roomId = room.roomId;
-    socket.emit('room_joined', room.roomId, room.getGameState());
+    socket.emit('room_joined', room.roomId, room.getGameState(), room.getCurrentGameType());
     socket.emit('player_joined', sanitizedPlayer);
     callback(room.roomId);
     broadcastRooms(io, roomManager);
@@ -90,7 +91,7 @@ export function registerHandlers(
     socket.data.playerId = sanitizedPlayer.id;
     socket.data.roomId = roomId;
     socket.to(roomId).emit('player_joined', sanitizedPlayer);
-    socket.emit('room_joined', roomId, room.getGameState());
+    socket.emit('room_joined', roomId, room.getGameState(), room.getCurrentGameType());
     for (const p of room.getPlayers()) {
       socket.emit('player_joined', p);
     }
@@ -98,8 +99,43 @@ export function registerHandlers(
     broadcastRooms(io, roomManager);
   });
 
+  socket.on('start_game', (callback) => {
+    const { playerId, roomId } = socket.data;
+    if (!roomId || !playerId) { callback(false, 'NOT_IN_ROOM'); return; }
+
+    const room = roomManager.getRoom(roomId);
+    if (!room)                               { callback(false, 'ROOM_NOT_FOUND'); return; }
+    if (room.getStatus() !== 'LOBBY')        { callback(false, 'ALREADY_STARTED'); return; }
+    if (room.getHostPlayerId() !== playerId) { callback(false, 'NOT_HOST'); return; }
+    if (room.getPlayerCount() < 2)           { callback(false, 'NOT_ENOUGH_PLAYERS'); return; }
+
+    room.startGame();
+    io.to(roomId).emit('game_started', room.getGameState()!);
+    broadcastRooms(io, roomManager);
+    callback(true);
+  });
+
   socket.on('leave_room', (callback) => {
     handlePlayerLeave(io, socket, roomManager);
+    callback(true);
+  });
+
+  socket.on('request_rematch', (callback) => {
+    const { playerId, roomId } = socket.data;
+    if (!roomId || !playerId) { callback(false, 'NOT_IN_ROOM'); return; }
+
+    const room = roomManager.getRoom(roomId);
+    if (!room)                           { callback(false, 'ROOM_NOT_FOUND'); return; }
+    if (room.getStatus() !== 'FINISHED') { callback(false, 'GAME_NOT_FINISHED'); return; }
+
+    socket.to(roomId).emit('rematch_requested', playerId);
+
+    const allReady = room.voteRematch(socket.id);
+    if (allReady) {
+      room.startGame();
+      io.to(roomId).emit('game_started', room.getGameState()!);
+      broadcastRooms(io, roomManager);
+    }
     callback(true);
   });
 

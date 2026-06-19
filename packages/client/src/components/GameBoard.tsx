@@ -1,28 +1,40 @@
-import type { GameState, Move, Player } from '@gamengine/shared'
+import type { GameState, GameType, Move, Player } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
+import { TicTacToeGrid } from './TicTacToeGrid'
+import { MancalaBoard } from './MancalaBoard'
 
 interface GameBoardProps {
-  socket:    AppSocket
-  gameState: GameState | null
-  roomId:    string
-  players:   Player[]
-  hostId:    string | null
-  leaveRoom: () => void
+  socket:          AppSocket
+  gameState:       GameState | null
+  roomId:          string
+  currentGameType: GameType
+  players:         Player[]
+  hostId:          string | null
+  rematchVotes:    string[]
+  leaveRoom:       () => void
+  startGame:       () => void
+  requestRematch:  () => void
 }
 
-export function GameBoard({ socket, gameState, roomId, players, hostId, leaveRoom }: GameBoardProps) {
+export function GameBoard({
+  socket, gameState, roomId, currentGameType,
+  players, hostId, rematchVotes,
+  leaveRoom, startGame, requestRematch,
+}: GameBoardProps) {
   const myPlayerId = socket.id
   const isHost     = myPlayerId !== undefined && hostId === myPlayerId
 
-  function sendMove(moveData: unknown) {
+  function sendMove(data: unknown) {
     if (!myPlayerId) return
-    const move: Move = { type: 'play', playerId: myPlayerId, data: moveData }
+    const move: Move = { type: 'place', playerId: myPlayerId, data }
     socket.emit('send_move', move, (ok, err) => {
       if (!ok) console.error('Move rejected:', err)
     })
   }
 
+  // ── Waiting screen ────────────────────────────────────────────────────────
   if (!gameState) {
+    const canStart = isHost && players.length >= 2
     return (
       <div style={styles.page}>
         <div style={styles.header}>
@@ -51,39 +63,119 @@ export function GameBoard({ socket, gameState, roomId, players, hostId, leaveRoo
         </div>
 
         {isHost && (
-          <button style={styles.btnStart} disabled>
-            Start game (coming soon)
+          <button
+            style={{ ...styles.btnStart, ...(canStart ? styles.btnStartActive : {}) }}
+            disabled={!canStart}
+            onClick={startGame}
+          >
+            {canStart ? 'Start game' : 'Waiting for players…'}
           </button>
         )}
       </div>
     )
   }
 
+  // ── Game screen ───────────────────────────────────────────────────────────
+  const currentId = gameState.players[gameState.turn]?.id
+  const isMyTurn  = currentId === myPlayerId
+  const gameOver  = gameState.winner !== null
+  const myIndex   = gameState.players.findIndex((p) => p.id === myPlayerId)
+  const mySymbol  = myIndex === 0 ? 'X' : 'O'
+
+  let statusText = ''
+  if (gameState.winner === 'DRAW') {
+    statusText = "It's a draw!"
+  } else if (gameState.winner === myPlayerId) {
+    statusText = 'You win! 🎉'
+  } else if (gameState.winner !== null) {
+    statusText = 'You lose.'
+  } else if (isMyTurn) {
+    statusText = currentGameType === 'TIC_TAC_TOE'
+      ? `Your turn (${mySymbol})`
+      : 'Your turn'
+  } else {
+    statusText = 'Waiting for opponent…'
+  }
+
+  const statusColor =
+    gameState.winner === myPlayerId ? '#2e7d32' :
+    gameState.winner && gameState.winner !== 'DRAW' ? '#c62828' :
+    '#333'
+
+  const GAME_TITLES: Record<GameType, string> = {
+    TIC_TAC_TOE: 'Tic-Tac-Toe',
+    MANCALA:     'Mancala',
+  }
+
+  function renderBoard() {
+    if (currentGameType === 'TIC_TAC_TOE') {
+      return (
+        <TicTacToeGrid
+          board={gameState!.board as string[]}
+          isMyTurn={isMyTurn}
+          gameOver={gameOver}
+          onMove={(cell) => sendMove({ cell })}
+        />
+      )
+    }
+    if (currentGameType === 'MANCALA') {
+      return (
+        <MancalaBoard
+          board={gameState!.board as number[]}
+          isMyTurn={isMyTurn}
+          gameOver={gameOver}
+          myIndex={myIndex >= 0 ? myIndex : 0}
+          onMove={(pit) => sendMove({ pit })}
+        />
+      )
+    }
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h2>Turn {gameState.turn}</h2>
+        <h2 style={styles.title}>{GAME_TITLES[currentGameType]}</h2>
         <button style={styles.btnLeave} onClick={leaveRoom}>Leave room</button>
       </div>
-      {gameState.winner && <h3>Winner: {gameState.winner}</h3>}
-      <pre>{JSON.stringify(gameState.board, null, 2)}</pre>
-      <button onClick={() => sendMove({ cell: 0 })}>Make move</button>
+
+      <p style={{ ...styles.status, color: statusColor }}>{statusText}</p>
+
+      {renderBoard()}
+
+      {gameOver && (
+        <div style={styles.rematchPanel}>
+          {myPlayerId && rematchVotes.includes(myPlayerId) ? (
+            <button style={styles.btnRematchWaiting} disabled>
+              Waiting for opponent… ({rematchVotes.length}/{players.length})
+            </button>
+          ) : (
+            <button style={styles.btnRematch} onClick={requestRematch}>
+              Rematch
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page:        { maxWidth: 480, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui, sans-serif' },
-  header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  title:       { margin: 0 },
-  roomId:      { color: '#555', margin: '4px 0 0' },
-  playerList:  { background: '#f5f5f5', borderRadius: 8, padding: '16px 20px', marginTop: 24 },
-  playersLabel:{ fontWeight: 600 },
-  empty:       { color: '#aaa' },
-  list:        { listStyle: 'none', padding: 0, margin: '8px 0 0' },
-  playerItem:  { padding: '4px 0', fontSize: 15 },
-  you:         { color: '#1a73e8', fontSize: 13 },
-  hostBadge:   { color: '#f09c00', fontSize: 13, fontWeight: 600 },
-  btnLeave:    { padding: '6px 14px', background: '#fff', color: '#d32f2f', border: '1px solid #d32f2f', borderRadius: 6, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' },
-  btnStart:    { marginTop: 24, width: '100%', padding: '10px 0', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 6, cursor: 'not-allowed', fontWeight: 600, opacity: 0.6, fontSize: 15 },
+  page:               { maxWidth: 520, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui, sans-serif' },
+  header:             { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  title:              { margin: 0 },
+  roomId:             { color: '#555', margin: '4px 0 0' },
+  playerList:         { background: '#f5f5f5', borderRadius: 8, padding: '16px 20px', marginTop: 24 },
+  playersLabel:       { fontWeight: 600 },
+  empty:              { color: '#aaa' },
+  list:               { listStyle: 'none', padding: 0, margin: '8px 0 0' },
+  playerItem:         { padding: '4px 0', fontSize: 15 },
+  you:                { color: '#1a73e8', fontSize: 13 },
+  hostBadge:          { color: '#f09c00', fontSize: 13, fontWeight: 600 },
+  btnLeave:           { padding: '6px 14px', background: '#fff', color: '#d32f2f', border: '1px solid #d32f2f', borderRadius: 6, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' },
+  btnStart:           { marginTop: 24, width: '100%', padding: '10px 0', background: '#bdbdbd', color: '#fff', border: 'none', borderRadius: 6, cursor: 'not-allowed', fontWeight: 600, opacity: 0.7, fontSize: 15 },
+  btnStartActive:     { background: '#1a73e8', cursor: 'pointer', opacity: 1 },
+  status:             { fontSize: 18, fontWeight: 600, margin: '16px 0', textAlign: 'center' },
+  rematchPanel:       { marginTop: 24 },
+  btnRematch:         { width: '100%', padding: '10px 0', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 15 },
+  btnRematchWaiting:  { width: '100%', padding: '10px 0', background: '#bdbdbd', color: '#fff', border: 'none', borderRadius: 6, cursor: 'not-allowed', fontWeight: 600, fontSize: 15, opacity: 0.8 },
 }

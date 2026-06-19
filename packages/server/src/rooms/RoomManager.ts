@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { GameType } from '@gamengine/shared';
 import { Room } from './Room.js';
 
 const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -17,9 +18,9 @@ export class RoomManager {
     return RoomManager.instance;
   }
 
-  createRoom(roomName: string): Room {
+  createRoom(roomName: string, gameType: GameType): Room {
     const roomId = this.generateId();
-    const room = new Room(roomId, roomName);
+    const room = new Room(roomId, roomName, gameType);
     this.rooms.set(roomId, room);
     return room;
   }
