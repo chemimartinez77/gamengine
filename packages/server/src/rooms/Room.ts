@@ -13,6 +13,7 @@ const ENGINE_REGISTRY: Record<GameType, GameEngine> = {
 export class Room {
   readonly roomId:   string;
   readonly roomName: string;
+  readonly isBot:    boolean = false;
   private currentGameType: GameType;
   private status:    RoomStatus = 'LOBBY';
   private engine:    GameEngine | null = null;

@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import type { GameType } from '@gamengine/shared';
+import type { GameType, BotDifficulty } from '@gamengine/shared';
 import { Room } from './Room.js';
+import { BotRoom } from './BotRoom.js';
 
-const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const CHARSET   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const ID_LENGTH = 6;
 
 export class RoomManager {
@@ -20,14 +21,22 @@ export class RoomManager {
 
   createRoom(roomName: string, gameType: GameType): Room {
     const roomId = this.generateId();
-    const room = new Room(roomId, roomName, gameType);
+    const room   = new Room(roomId, roomName, gameType);
     this.rooms.set(roomId, room);
     return room;
   }
 
+  createBotRoom(gameType: GameType, difficulty: BotDifficulty): BotRoom {
+    const roomId = this.generateId();
+    const room   = new BotRoom(roomId, 'Partida vs Bot', gameType, difficulty);
+    this.rooms.set(roomId, room);
+    return room;
+  }
+
+  // Only public, non-bot, lobby-status rooms appear in the list.
   getRoomList() {
     return [...this.rooms.values()]
-      .filter((r) => r.getStatus() === 'LOBBY')
+      .filter((r) => !r.isBot && r.getStatus() === 'LOBBY')
       .map((r) => r.toSummary());
   }
 

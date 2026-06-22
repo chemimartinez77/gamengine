@@ -1,5 +1,7 @@
 export type GameType = 'TIC_TAC_TOE' | 'MANCALA';
 
+export type BotDifficulty = 'MUY_FACIL' | 'FACIL' | 'NORMAL' | 'DIFICIL' | 'MUY_DIFICIL';
+
 export interface Player {
   id: string;
   name: string;
@@ -47,6 +49,12 @@ export interface ClientToServerEvents {
     gameType:  GameType,
     player:    Player,
     callback:  (roomId: string) => void
+  ) => void;
+  create_bot_room: (
+    gameType:   GameType,
+    difficulty: BotDifficulty,
+    player:     Player,
+    callback:   (roomId: string) => void
   ) => void;
   join_room: (
     roomId:   string,

@@ -119,13 +119,24 @@ export function GameBoard({
       )
     }
     if (currentGameType === 'MANCALA') {
+      const names: [string, string] = [
+        gameState!.players[0]?.name ?? 'Player 1',
+        gameState!.players[1]?.name ?? 'Player 2',
+      ]
       return (
         <MancalaBoard
           board={gameState!.board as number[]}
           isMyTurn={isMyTurn}
           gameOver={gameOver}
           myIndex={myIndex >= 0 ? myIndex : 0}
+          winnerId={gameState!.winner}
+          myPlayerId={myPlayerId}
           onMove={(pit) => sendMove({ pit })}
+          playerNames={names}
+          onLeave={leaveRoom}
+          onRematch={requestRematch}
+          rematchVotes={rematchVotes}
+          playerCount={players.length}
         />
       )
     }
@@ -142,7 +153,8 @@ export function GameBoard({
 
       {renderBoard()}
 
-      {gameOver && (
+      {/* Mancala has its own end-game overlay with rematch/leave actions */}
+      {gameOver && currentGameType !== 'MANCALA' && (
         <div style={styles.rematchPanel}>
           {myPlayerId && rematchVotes.includes(myPlayerId) ? (
             <button style={styles.btnRematchWaiting} disabled>
@@ -160,7 +172,7 @@ export function GameBoard({
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page:               { maxWidth: 520, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui, sans-serif' },
+  page:               { maxWidth: 620, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui, sans-serif' },
   header:             { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   title:              { margin: 0 },
   roomId:             { color: '#555', margin: '4px 0 0' },
