@@ -131,6 +131,18 @@ export function MancalaBoard({
   playerNames = ['Jugador 1', 'Jugador 2'],
 }: MancalaBoardProps) {
 
+  // Animation speed
+  type AnimSpeed = 'rapida' | 'normal' | 'lenta' | 'muy_lenta' | 'lentisima'
+  const [animSpeed, setAnimSpeed] = useState<AnimSpeed>('rapida')
+  const SPEED_PRESETS: Record<AnimSpeed, { dur: number; stagger: number }> = {
+    rapida:    { dur:  480, stagger: 127 },
+    normal:    { dur:  720, stagger: 190 },
+    lenta:     { dur: 1440, stagger: 380 },
+    muy_lenta: { dur: 2880, stagger: 760 },
+    lentisima: { dur: 5760, stagger: 1520 },
+  }
+  const { dur: SEED_DUR, stagger: STAGGER } = SPEED_PRESETS[animSpeed]
+
   // displayBoard: visually rendered board, lags behind `board` prop during animation
   const [displayBoard, setDisplayBoard] = useState<number[]>([...board])
 
@@ -143,6 +155,10 @@ export function MancalaBoard({
   const storeRefs       = useRef<(HTMLDivElement | null)[]>([null, null])
   const flyIdRef        = useRef(0)
   const pendingFinalRef = useRef<number[]>([...board])
+  // Queue of board transitions waiting to be animated
+  const animQueueRef    = useRef<Array<{ prev: number[]; next: number[] }>>([])
+  // Ref to the animation starter so handleSeedLand (useCallback, empty deps) can call it
+  const startSowRef     = useRef<(prev: number[], next: number[]) => void>(() => {})
 
   // Stable reference to board prop (used inside effects/callbacks without adding to deps)
   const boardPropRef    = useRef(board)
@@ -205,30 +221,23 @@ export function MancalaBoard({
   // ── Board-prop change → sow animation ─────────────────────────────────────────
   const prevPropRef = useRef<number[]>([...board])
 
-  useEffect(() => {
-    const prev = prevPropRef.current
-    if (!board.some((v, i) => v !== prev[i])) return
-
-    pendingFinalRef.current = [...board]
-
-    if (isAnimatingRef.current) {
-      // Mid-animation: update the snap target only; current animation will snap to it
-      prevPropRef.current = [...board]
-      return
-    }
+  // Extracted so handleSeedLand can trigger queued animations after the current one ends.
+  // Assigned to startSowRef.current on every render so the closure always captures fresh
+  // values (myIndex, SEED_DUR, STAGGER, refs) without adding them to useCallback deps.
+  function startSowAnimation(prev: number[], next: number[]) {
+    pendingFinalRef.current = [...next]
 
     // Determine origin pit
     let origin = pendingOriginRef.current
     pendingOriginRef.current = null
 
     if (origin === null) {
-      // Opponent move: find their pit that went from >0 to 0
       const oppPits = myIndex === 0 ? [7, 8, 9, 10, 11, 12] : [0, 1, 2, 3, 4, 5]
-      const found = oppPits.find(i => prev[i] > 0 && board[i] === 0)
+      const found = oppPits.find(i => prev[i] > 0 && next[i] === 0)
       origin = found !== undefined ? found : null
     }
 
-    const snap = () => { setDisplayBoard([...board]); prevPropRef.current = [...board] }
+    const snap = () => setDisplayBoard([...next])
 
     if (origin === null || !boardRef.current) { snap(); return }
 
@@ -236,8 +245,7 @@ export function MancalaBoard({
     if (seedCount <= 0) { snap(); return }
 
     const sequence = sowingSequence(origin, seedCount)
-    const boardEl  = boardRef.current
-    const boardRect = boardEl.getBoundingClientRect()
+    const boardRect = boardRef.current.getBoundingClientRect()
 
     function getCenter(idx: number): { x: number; y: number } | null {
       const el: Element | null | undefined =
@@ -252,10 +260,7 @@ export function MancalaBoard({
     const originCenter = getCenter(origin)
     if (!originCenter) { snap(); return }
 
-    const SEED_DUR = 360
-    const STAGGER  = 95
     const newFlying: FlyingSeed[] = []
-
     sequence.forEach((destPit, idx) => {
       const dc = getCenter(destPit)
       if (!dc) return
@@ -271,24 +276,41 @@ export function MancalaBoard({
 
     if (newFlying.length === 0) { snap(); return }
 
-    // Immediately empty the origin pit; seeds are now "in flight"
     setDisplayBoard(d => { const n = [...d]; n[origin!] = 0; return n })
     isAnimatingRef.current = true
     setFlyingSeeds(newFlying)
+  }
+  startSowRef.current = startSowAnimation
+
+  useEffect(() => {
+    const prev = prevPropRef.current
+    if (!board.some((v, i) => v !== prev[i])) return
+
+    const item = { prev: [...prev], next: [...board] }
     prevPropRef.current = [...board]
+
+    if (isAnimatingRef.current) {
+      // Current animation still running — queue this move for after it finishes
+      animQueueRef.current.push(item)
+    } else {
+      startSowRef.current(item.prev, item.next)
+    }
   }, [board, myIndex])
 
   // ── Seed landing ───────────────────────────────────────────────────────────────
   const handleSeedLand = useCallback((seed: FlyingSeed) => {
-    // Increment destination pit (triggers starburst flash detection)
     setDisplayBoard(d => { const n = [...d]; n[seed.destPit]++; return n })
 
     setFlyingSeeds(prev => {
       const remaining = prev.filter(s => s.id !== seed.id)
       if (remaining.length === 0) {
         isAnimatingRef.current = false
-        // Small delay so the last starburst has started before the snap
-        setTimeout(() => setDisplayBoard([...pendingFinalRef.current]), 160)
+        setTimeout(() => {
+          setDisplayBoard([...pendingFinalRef.current])
+          // Start the next queued move (e.g. bot responding while our animation played)
+          const queued = animQueueRef.current.shift()
+          if (queued) setTimeout(() => startSowRef.current(queued.prev, queued.next), 80)
+        }, 160)
       }
       return remaining
     })
@@ -481,6 +503,23 @@ export function MancalaBoard({
           </span>
         </div>
 
+        {/* Animation speed selector */}
+        <div style={styles.speedRow}>
+          <label style={styles.speedLabel} htmlFor="mancala-speed">Velocidad:</label>
+          <select
+            id="mancala-speed"
+            style={styles.speedSelect}
+            value={animSpeed}
+            onChange={(e) => setAnimSpeed(e.target.value as AnimSpeed)}
+          >
+            <option value="rapida">Rápida</option>
+            <option value="normal">Normal</option>
+            <option value="lenta">Lenta</option>
+            <option value="muy_lenta">Muy lenta</option>
+            <option value="lentisima">Lentísima</option>
+          </select>
+        </div>
+
         {/* Event log */}
         {log.length > 0 && (
           <div style={styles.logWidget}>
@@ -626,6 +665,14 @@ const styles: Record<string, React.CSSProperties> = {
   playerLabels: { display: 'flex', justifyContent: 'space-between', marginTop: 10, padding: '0 82px' },
   playerChip:   { fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 },
   playerChipMe: { color: '#e65100', fontWeight: 700 },
+
+  speedRow:    { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 8 },
+  speedLabel:  { fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 },
+  speedSelect: {
+    fontSize: 11, fontWeight: 600, color: '#555',
+    background: '#fff', border: '1px solid #ddd', borderRadius: 6,
+    padding: '3px 6px', cursor: 'pointer', outline: 'none',
+  },
 
   logWidget: {
     marginTop: 14, borderRadius: 12,
