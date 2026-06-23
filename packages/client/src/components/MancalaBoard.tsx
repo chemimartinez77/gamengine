@@ -6,22 +6,26 @@
 //
 // onMove receives a relative pit index (0–5) for the active player.
 
+import { useState, useEffect, useRef } from 'react'
+import type { MancalaEvent } from '@gamengine/shared'
+
 interface MancalaBoardProps {
   board:          number[]
   isMyTurn:       boolean
   gameOver:       boolean
-  myIndex:        number    // 0 or 1
+  myIndex:        number
   winnerId:       string | null
   myPlayerId:     string | undefined
   onMove:         (relativePit: number) => void
-  playerNames?:   [string, string]  // [p0name, p1name]
+  playerNames?:   [string, string]
   onLeave:        () => void
   onRematch:      () => void
   rematchVotes:   string[]
   playerCount:    number
+  lastEvents?:    MancalaEvent[]
 }
 
-// Renders up to 12 seeds as dots; falls back to a plain number above that.
+// ── Seed renderer ──────────────────────────────────────────────────────────────
 function Seeds({ count }: { count: number }) {
   if (count === 0) return <span style={seedStyles.empty}>·</span>
   if (count > 12)  return <span style={seedStyles.bigNumber}>{count}</span>
@@ -35,22 +39,106 @@ function Seeds({ count }: { count: number }) {
 }
 
 const seedStyles: Record<string, React.CSSProperties> = {
-  empty:     { color: '#ccc', fontSize: 18 },
-  bigNumber: { fontSize: 22, fontWeight: 700 },
+  empty:     { color: 'rgba(240,210,120,0.2)', fontSize: 18 },
+  bigNumber: { fontSize: 22, fontWeight: 800, color: '#f0d880', textShadow: '0 1px 4px rgba(0,0,0,0.9)' },
   grid:      { display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', alignItems: 'center', width: '100%' },
-  dot:       { width: 8, height: 8, borderRadius: '50%', background: '#795548', display: 'inline-block', flexShrink: 0 },
+  dot:       {
+    width: 8, height: 8, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+    background: 'radial-gradient(circle at 35% 30%, #fdeea0, #c8a030)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.7), inset 0 -1px 2px rgba(0,0,0,0.3)',
+  },
 }
 
+// ── Event log helpers ──────────────────────────────────────────────────────────
+const LOG_ICONS: Record<string, string> = {
+  EXTRA_TURN: '↩',
+  CAPTURE:    '⚡',
+  SWEEP:      '🌀',
+}
+
+const LOG_COLORS: Record<string, React.CSSProperties> = {
+  EXTRA_TURN: { background: 'rgba(59,130,246,0.18)', borderColor: 'rgba(59,130,246,0.35)', color: '#93c5fd' },
+  CAPTURE:    { background: 'rgba(251,191,36,0.20)', borderColor: 'rgba(251,191,36,0.45)',  color: '#fcd34d' },
+  SWEEP:      { background: 'rgba(167,139,250,0.18)', borderColor: 'rgba(167,139,250,0.35)', color: '#c4b5fd' },
+}
+
+function formatEvent(
+  ev: MancalaEvent,
+  myIndex: number,
+  playerNames: [string, string],
+): string {
+  const isMe = ev.playerIndex === myIndex
+  const name = playerNames[ev.playerIndex]
+
+  if (ev.type === 'EXTRA_TURN') {
+    return isMe
+      ? '¡Turno extra! Tu última semilla cayó en tu almacén.'
+      : `¡Turno extra para ${name}!`
+  }
+  if (ev.type === 'CAPTURE') {
+    return isMe
+      ? `¡Gran captura! Te llevas tu semilla y las ${ev.seeds} semillas del hoyo opuesto.`
+      : `${name} captura ${ev.seeds} semillas del hoyo opuesto.`
+  }
+  // SWEEP
+  return `Limpieza final: ${ev.seeds} semillas al almacén de ${name}.`
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const BOARD_GRADIENT = 'linear-gradient(160deg, #d49450 0%, #b06820 35%, #c27830 65%, #96571e 100%)'
+const WOOD_FRAME     = '0 10px 36px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.25)'
+const PIT_BG         = '#170900'
+const PIT_SHADOW     = 'inset 0 5px 18px rgba(0,0,0,0.88), inset 0 2px 8px rgba(0,0,0,0.6), inset 0 -1px 3px rgba(255,170,60,0.07)'
+const PIT_GLOW       = `${PIT_SHADOW}, 0 0 0 3px #ffb347, 0 0 16px rgba(255,152,0,0.5)`
+const STORE_BG       = '#120700'
+const STORE_SHADOW   = 'inset 0 8px 28px rgba(0,0,0,0.92), inset 0 3px 12px rgba(0,0,0,0.6), inset 0 -2px 5px rgba(255,170,60,0.05)'
+const STORE_GLOW     = `${STORE_SHADOW}, 0 0 0 3px #ffb347, 0 0 20px rgba(255,152,0,0.45)`
+
+const MAX_LOG = 6
+
+// ── Component ──────────────────────────────────────────────────────────────────
 export function MancalaBoard({
   board, isMyTurn, gameOver, myIndex, winnerId, myPlayerId,
   onMove, onLeave, onRematch, rematchVotes, playerCount,
-  playerNames = ['Player 1', 'Player 2'],
+  lastEvents,
+  playerNames = ['Jugador 1', 'Jugador 2'],
 }: MancalaBoardProps) {
-  const p0Pits = board.slice(0, 6)   // absolute indices 0–5
+  const p0Pits = board.slice(0, 6)
   const store0 = board[6]
-  const p1Pits = board.slice(7, 13)  // absolute indices 7–12
+  const p1Pits = board.slice(7, 13)
   const store1 = board[13]
 
+  // ── Event log state ──────────────────────────────────────────────────────────
+  type LogEntry = { id: number; text: string; type: string }
+  const [log, setLog]     = useState<LogEntry[]>([])
+  const logIdRef          = useRef(0)
+  const playerNamesRef    = useRef(playerNames)
+  playerNamesRef.current  = playerNames
+  const prevGameOverRef   = useRef(gameOver)
+
+  // Clear log when a new game begins (gameOver flips false after a rematch)
+  useEffect(() => {
+    if (prevGameOverRef.current && !gameOver) {
+      setLog([])
+    }
+    prevGameOverRef.current = gameOver
+  }, [gameOver])
+
+  // Append new events to the top of the log
+  useEffect(() => {
+    if (!lastEvents || lastEvents.length === 0) return
+    const names = playerNamesRef.current
+    setLog(prev => {
+      const newEntries: LogEntry[] = lastEvents.map(ev => ({
+        id:   ++logIdRef.current,
+        text: formatEvent(ev, myIndex, names),
+        type: ev.type,
+      }))
+      return [...newEntries, ...prev].slice(0, MAX_LOG)
+    })
+  }, [lastEvents, myIndex])
+
+  // ── Sub-components ───────────────────────────────────────────────────────────
   function Pit({ relativePit, playerIndex }: { relativePit: number; playerIndex: number }) {
     const seeds    = playerIndex === 0 ? p0Pits[relativePit] : p1Pits[relativePit]
     const isOwner  = playerIndex === myIndex
@@ -59,14 +147,16 @@ export function MancalaBoard({
       <button
         style={{
           ...styles.pit,
-          cursor:     canClick ? 'pointer' : 'default',
-          background: canClick ? '#fff8f0' : '#fafafa',
-          border:     `2px solid ${canClick ? '#fb8c00' : '#e0e0e0'}`,
-          opacity:    !isOwner ? 0.6 : 1,
+          background: PIT_BG,
+          boxShadow: canClick ? PIT_GLOW : PIT_SHADOW,
+          cursor:    canClick ? 'pointer' : 'default',
+          opacity:   !isOwner && !gameOver ? 0.72 : 1,
+          transform: canClick ? 'translateY(-1px)' : 'none',
+          transition: 'box-shadow 0.2s ease, transform 0.1s ease, opacity 0.2s ease',
         }}
         disabled={!canClick}
         onClick={() => onMove(relativePit)}
-        title={canClick ? `Move pit ${relativePit + 1} (${seeds} seeds)` : undefined}
+        title={canClick ? `Hoyo ${relativePit + 1} — ${seeds} semillas` : undefined}
       >
         <Seeds count={seeds} />
       </button>
@@ -74,196 +164,312 @@ export function MancalaBoard({
   }
 
   function Store({ playerIndex, count }: { playerIndex: number; count: number }) {
-    const isMyStore = playerIndex === myIndex
-    const name      = playerNames[playerIndex]
+    const isActive = playerIndex === myIndex && isMyTurn && !gameOver
+    const name     = playerNames[playerIndex]
     return (
       <div style={{
         ...styles.store,
-        border:     `2px solid ${isMyStore ? '#1a73e8' : '#e0e0e0'}`,
-        background: isMyStore ? '#e8f0fe' : '#fafafa',
+        background: STORE_BG,
+        boxShadow: isActive ? STORE_GLOW : STORE_SHADOW,
+        transition: 'box-shadow 0.3s ease',
       }}>
         <span style={styles.storeLabel}>{name}</span>
         <span style={styles.storeCount}>{count}</span>
-        <span style={styles.storeSubLabel}>store</span>
+        <span style={styles.storeSubLabel}>almacén</span>
       </div>
     )
   }
 
-  // Derive end-game display info
-  const isDraw    = winnerId === 'DRAW'
-  const iWon      = !isDraw && winnerId !== null && winnerId === myPlayerId
-  const iLost     = !isDraw && winnerId !== null && winnerId !== myPlayerId
-  const winnerName = isDraw
-    ? null
-    : winnerId === myPlayerId
-      ? playerNames[myIndex]
-      : playerNames[1 - myIndex]
-
-  const hasVoted = myPlayerId !== undefined && rematchVotes.includes(myPlayerId)
-
-  // The visual layout is always from P1's perspective on top, P0 on bottom.
-  // P1's pits are shown reversed (pit 5 on left, pit 0 on right) so they face P0's pits.
-  // Stores: P1 store on the left, P0 store on the right.
+  // ── Derived end-game values ───────────────────────────────────────────────────
+  const isDraw      = winnerId === 'DRAW'
+  const iWon        = !isDraw && winnerId !== null && winnerId === myPlayerId
+  const iLost       = !isDraw && winnerId !== null && winnerId !== myPlayerId
+  const winnerName  = isDraw ? null
+    : winnerId === myPlayerId ? playerNames[myIndex] : playerNames[1 - myIndex]
+  const hasVoted    = myPlayerId !== undefined && rematchVotes.includes(myPlayerId)
+  const winnerIndex = isDraw ? -1 : iWon ? myIndex : 1 - myIndex
 
   return (
-    <div style={styles.wrapper}>
-      {/* Turn indicator strip */}
-      <div style={styles.turnStrip}>
-        <span style={{ ...styles.turnDot, background: isMyTurn ? '#1a73e8' : '#e0e0e0' }} />
-        <span style={styles.turnText}>
-          {gameOver ? 'Game over' : isMyTurn ? 'Your turn — pick a pit' : `${playerNames[1 - myIndex]}'s turn`}
-        </span>
-      </div>
+    <>
+      {/* CSS keyframe — injected once, scoped by class name */}
+      <style>{`
+        @keyframes mancalaLogIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .mancala-log-new { animation: mancalaLogIn 0.3s ease; }
+      `}</style>
 
-      <div style={styles.board}>
-        {/* P1 store — left side */}
-        <Store playerIndex={1} count={store1} />
-
-        {/* Two rows of 6 pits */}
-        <div style={styles.pitsArea}>
-          {/* P1 row — reversed so pit closest to P1's store is on the left */}
-          <div style={styles.row}>
-            {[5, 4, 3, 2, 1, 0].map((i) => (
-              <Pit key={i} relativePit={i} playerIndex={1} />
-            ))}
-          </div>
-
-          {/* Pit index labels */}
-          <div style={styles.indexRow}>
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <span key={n} style={styles.indexLabel}>{n}</span>
-            ))}
-          </div>
-
-          {/* P0 row — left-to-right */}
-          <div style={styles.row}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <Pit key={i} relativePit={i} playerIndex={0} />
-            ))}
-          </div>
+      <div style={styles.wrapper}>
+        {/* Turn indicator */}
+        <div style={{
+          ...styles.turnStrip,
+          background: gameOver
+            ? 'rgba(100,100,100,0.07)'
+            : isMyTurn
+              ? 'linear-gradient(90deg, rgba(255,152,0,0.14) 0%, rgba(255,152,0,0.04) 100%)'
+              : 'rgba(0,0,0,0.04)',
+          borderColor: gameOver ? '#d0d0d0' : isMyTurn ? '#ff9800' : '#ddd',
+        }}>
+          <span style={{
+            ...styles.turnDot,
+            background: gameOver ? '#bbb' : isMyTurn ? '#ff9800' : '#90a4ae',
+            boxShadow: !gameOver && isMyTurn ? '0 0 8px rgba(255,152,0,0.75)' : 'none',
+          }} />
+          <span style={styles.turnText}>
+            {gameOver
+              ? 'Juego terminado'
+              : isMyTurn
+                ? 'Tu turno — elige un hoyo'
+                : `Turno de ${playerNames[1 - myIndex]}`}
+          </span>
         </div>
 
-        {/* P0 store — right side */}
-        <Store playerIndex={0} count={store0} />
-      </div>
+        {/* Wooden board canvas */}
+        <div style={{ ...styles.boardCanvas, background: BOARD_GRADIENT, boxShadow: WOOD_FRAME }}>
+          <Store playerIndex={1} count={store1} />
 
-      {/* Player labels below the board */}
-      <div style={styles.playerLabels}>
-        <span style={styles.playerLabel}>
-          ↑ {playerNames[1]}{myIndex === 1 ? ' (you)' : ''}
-        </span>
-        <span style={styles.playerLabel}>
-          ↓ {playerNames[0]}{myIndex === 0 ? ' (you)' : ''}
-        </span>
-      </div>
+          <div style={styles.pitsArea}>
+            <div style={styles.row}>
+              {[5, 4, 3, 2, 1, 0].map((i) => (
+                <Pit key={i} relativePit={i} playerIndex={1} />
+              ))}
+            </div>
+            <div style={styles.indexRow}>
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <span key={n} style={styles.indexLabel}>{n}</span>
+              ))}
+            </div>
+            <div style={styles.row}>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <Pit key={i} relativePit={i} playerIndex={0} />
+              ))}
+            </div>
+          </div>
 
-      {/* ── End-game overlay ───────────────────────────────────────────────── */}
-      {gameOver && (
-        <div style={styles.overlay}>
-          {/* Result headline */}
-          <div style={{
-            ...styles.resultBadge,
-            background: isDraw ? '#f5f5f5' : iWon ? '#e8f5e9' : '#fce4ec',
-            borderColor: isDraw ? '#bdbdbd' : iWon ? '#43a047' : '#e53935',
-          }}>
-            <span style={{
-              ...styles.resultEmoji,
-            }}>
-              {isDraw ? '🤝' : iWon ? '🏆' : '😔'}
-            </span>
-            <span style={{
-              ...styles.resultTitle,
-              color: isDraw ? '#555' : iWon ? '#2e7d32' : '#c62828',
-            }}>
-              {isDraw
-                ? "It's a Tie!"
+          <Store playerIndex={0} count={store0} />
+        </div>
+
+        {/* Player name labels */}
+        <div style={styles.playerLabels}>
+          <span style={{ ...styles.playerChip, ...(myIndex === 1 ? styles.playerChipMe : {}) }}>
+            ↑ {playerNames[1]}{myIndex === 1 ? ' (tú)' : ''}
+          </span>
+          <span style={{ ...styles.playerChip, ...(myIndex === 0 ? styles.playerChipMe : {}) }}>
+            ↓ {playerNames[0]}{myIndex === 0 ? ' (tú)' : ''}
+          </span>
+        </div>
+
+        {/* ── Event log ─────────────────────────────────────────────────────── */}
+        {log.length > 0 && (
+          <div style={styles.logWidget}>
+            <div style={styles.logHeader}>
+              <span style={styles.logHeaderIcon}>📋</span>
+              <span>Registro de jugadas</span>
+            </div>
+            <ul style={styles.logList}>
+              {log.map((entry, idx) => (
+                <li
+                  key={entry.id}
+                  className={idx === 0 ? 'mancala-log-new' : undefined}
+                  style={{ ...styles.logEntry, ...LOG_COLORS[entry.type] }}
+                >
+                  <span style={styles.logIcon}>{LOG_ICONS[entry.type]}</span>
+                  <span style={styles.logText}>{entry.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ── End-game overlay ──────────────────────────────────────────────── */}
+        {gameOver && (
+          <div style={styles.overlay}>
+            <div style={{
+              ...styles.resultBadge,
+              background: isDraw
+                ? 'linear-gradient(135deg, #607d8b 0%, #37474f 100%)'
                 : iWon
-                  ? 'You Win!'
-                  : iLost
-                    ? 'You Lose'
-                    : `${winnerName} Wins!`}
-            </span>
-            {!isDraw && winnerName && (
-              <span style={styles.resultSub}>
-                {iWon ? `Well played, ${playerNames[myIndex]}!` : `${winnerName} wins this round.`}
+                  ? 'linear-gradient(135deg, #43a047 0%, #1b5e20 100%)'
+                  : 'linear-gradient(135deg, #e53935 0%, #7f0000 100%)',
+            }}>
+              <span style={styles.resultEmoji}>{isDraw ? '🤝' : iWon ? '🏆' : '😔'}</span>
+              <span style={styles.resultTitle}>
+                {isDraw
+                  ? '¡Empate!'
+                  : iWon
+                    ? '¡Ganaste!'
+                    : iLost
+                      ? 'Perdiste'
+                      : `¡${winnerName} gana!`}
               </span>
-            )}
-          </div>
+              {!isDraw && winnerName && (
+                <span style={styles.resultSub}>
+                  {iWon
+                    ? `¡Bien jugado, ${playerNames[myIndex]}!`
+                    : `${winnerName} gana esta ronda.`}
+                </span>
+              )}
+            </div>
 
-          {/* Final scores */}
-          <div style={styles.scoreRow}>
-            {([0, 1] as const).map((pi) => (
-              <div
-                key={pi}
-                style={{
+            <div style={styles.scoreRow}>
+              {([0, 1] as const).map((pi) => (
+                <div key={pi} style={{
                   ...styles.scoreCard,
-                  border: `2px solid ${pi === myIndex ? '#1a73e8' : '#e0e0e0'}`,
-                  background: pi === myIndex ? '#e8f0fe' : '#fafafa',
-                }}
-              >
-                <span style={styles.scoreName}>
-                  {playerNames[pi]}{pi === myIndex ? ' (you)' : ''}
-                </span>
-                <span style={styles.scoreValue}>
-                  {pi === 0 ? store0 : store1}
-                </span>
-                <span style={styles.scoreLabel}>seeds</span>
-              </div>
-            ))}
-          </div>
+                  background: pi === myIndex
+                    ? 'linear-gradient(145deg, #1565c0 0%, #0d47a1 100%)'
+                    : 'linear-gradient(145deg, #3a3a3a 0%, #1e1e1e 100%)',
+                  boxShadow: pi === winnerIndex
+                    ? '0 0 0 3px #ffd600, 0 4px 16px rgba(255,214,0,0.3)'
+                    : '0 2px 8px rgba(0,0,0,0.3)',
+                }}>
+                  <span style={styles.scoreName}>
+                    {playerNames[pi]}{pi === myIndex ? ' (tú)' : ''}
+                  </span>
+                  <span style={styles.scoreValue}>{pi === 0 ? store0 : store1}</span>
+                  <span style={styles.scoreLabel}>semillas</span>
+                </div>
+              ))}
+            </div>
 
-          {/* Actions */}
-          <div style={styles.actionRow}>
-            {hasVoted ? (
-              <button style={styles.btnWaiting} disabled>
-                Waiting for opponent… ({rematchVotes.length}/{playerCount})
+            <div style={styles.actionRow}>
+              {hasVoted ? (
+                <button style={styles.btnWaiting} disabled>
+                  Esperando rival… ({rematchVotes.length}/{playerCount})
+                </button>
+              ) : (
+                <button style={styles.btnRematch} onClick={onRematch}>
+                  Revancha
+                </button>
+              )}
+              <button style={styles.btnLeave} onClick={onLeave}>
+                Volver al lobby
               </button>
-            ) : (
-              <button style={styles.btnRematch} onClick={onRematch}>
-                Rematch
-              </button>
-            )}
-            <button style={styles.btnLeave} onClick={onLeave}>
-              Back to Lobby
-            </button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper:      { marginTop: 16 },
-  turnStrip:    { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
-  turnDot:      { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
-  turnText:     { fontSize: 13, color: '#555' },
-  board:        { display: 'flex', alignItems: 'stretch', gap: 10 },
-  store:        { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 64, minHeight: 140, borderRadius: 32, padding: '12px 0', gap: 4 },
-  storeLabel:   { fontSize: 11, fontWeight: 600, color: '#555', textAlign: 'center', maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  storeCount:   { fontSize: 32, fontWeight: 700, lineHeight: 1 },
-  storeSubLabel:{ fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 },
-  pitsArea:     { flex: 1, display: 'flex', flexDirection: 'column', gap: 4 },
-  row:          { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
-  indexRow:     { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
-  indexLabel:   { textAlign: 'center', fontSize: 10, color: '#bbb', userSelect: 'none' },
-  pit:          { aspectRatio: '1', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 0 },
-  playerLabels: { display: 'flex', justifyContent: 'space-between', marginTop: 10, padding: '0 74px' },
-  playerLabel:  { fontSize: 12, color: '#777' },
+  wrapper:    { marginTop: 16, fontFamily: "'Segoe UI', system-ui, sans-serif" },
+
+  // Turn strip
+  turnStrip:  {
+    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+    padding: '8px 14px', borderRadius: 24, border: '1px solid',
+    transition: 'background 0.3s ease, border-color 0.3s ease',
+  },
+  turnDot:    { width: 10, height: 10, borderRadius: '50%', flexShrink: 0, transition: 'background 0.3s, box-shadow 0.3s' },
+  turnText:   { fontSize: 13, fontWeight: 600, color: '#444', letterSpacing: 0.3 },
+
+  // Wooden board
+  boardCanvas: {
+    display: 'flex', alignItems: 'stretch', gap: 12,
+    padding: '20px 14px', borderRadius: 22,
+    border: '2.5px solid rgba(0,0,0,0.28)',
+    position: 'relative',
+  },
+
+  // Stores
+  store: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    width: 68, minHeight: 160, borderRadius: 42, padding: '14px 6px', gap: 5,
+    border: '2px solid rgba(0,0,0,0.45)',
+  },
+  storeLabel:    { fontSize: 10, fontWeight: 700, color: 'rgba(240,210,120,0.65)', textAlign: 'center', maxWidth: 58, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: 1 },
+  storeCount:    { fontSize: 34, fontWeight: 800, lineHeight: 1, color: '#f0d880', textShadow: '0 2px 8px rgba(0,0,0,0.9)' },
+  storeSubLabel: { fontSize: 9, color: 'rgba(240,210,120,0.35)', textTransform: 'uppercase', letterSpacing: 1.5 },
+
+  // Pits grid
+  pitsArea:   { flex: 1, display: 'flex', flexDirection: 'column', gap: 6 },
+  row:        { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
+  indexRow:   { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
+  indexLabel: { textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.3)', userSelect: 'none', fontWeight: 700, letterSpacing: 0.5 },
+
+  // Circular carved pits
+  pit: {
+    aspectRatio: '1', borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 6, minWidth: 0,
+    border: '2px solid rgba(0,0,0,0.48)',
+  },
+
+  // Player chips
+  playerLabels: { display: 'flex', justifyContent: 'space-between', marginTop: 10, padding: '0 82px' },
+  playerChip:   { fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 },
+  playerChipMe: { color: '#e65100', fontWeight: 700 },
+
+  // Event log widget
+  logWidget: {
+    marginTop: 14, borderRadius: 12,
+    background: 'rgba(17,24,39,0.92)',
+    border: '1px solid rgba(255,255,255,0.07)',
+    overflow: 'hidden',
+  },
+  logHeader: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '8px 12px',
+    fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
+    color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+  logHeaderIcon: { fontSize: 12 },
+  logList:  { listStyle: 'none', margin: 0, padding: '4px 0' },
+  logEntry: {
+    display: 'flex', alignItems: 'flex-start', gap: 8,
+    padding: '6px 12px', fontSize: 12, fontWeight: 500,
+    borderLeft: '3px solid transparent',
+    lineHeight: 1.4,
+  },
+  logIcon: { fontSize: 13, flexShrink: 0, marginTop: 1 },
+  logText: { flex: 1 },
 
   // End-game overlay
-  overlay:      { marginTop: 24, borderRadius: 12, border: '1px solid #e0e0e0', padding: '24px 20px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'stretch' },
-  resultBadge:  { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, borderRadius: 10, border: '2px solid', padding: '20px 16px' },
-  resultEmoji:  { fontSize: 40, lineHeight: 1 },
-  resultTitle:  { fontSize: 28, fontWeight: 800, lineHeight: 1.1, textAlign: 'center' },
-  resultSub:    { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 2 },
-  scoreRow:     { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  scoreCard:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, borderRadius: 10, padding: '14px 8px' },
-  scoreName:    { fontSize: 12, fontWeight: 600, color: '#555', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  scoreValue:   { fontSize: 36, fontWeight: 800, lineHeight: 1, color: '#333' },
-  scoreLabel:   { fontSize: 11, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 },
-  actionRow:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  btnRematch:   { padding: '10px 0', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 },
-  btnWaiting:   { padding: '10px 0', background: '#bdbdbd', color: '#fff', border: 'none', borderRadius: 8, cursor: 'not-allowed', fontWeight: 700, fontSize: 14, opacity: 0.8 },
-  btnLeave:     { padding: '10px 0', background: '#fff', color: '#d32f2f', border: '1px solid #d32f2f', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 },
+  overlay:     {
+    marginTop: 22, borderRadius: 18, padding: '24px 20px',
+    background: '#111827',
+    boxShadow: '0 16px 48px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)',
+    display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'stretch',
+    border: '1px solid rgba(255,255,255,0.07)',
+  },
+  resultBadge: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    borderRadius: 14, padding: '22px 18px',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 20px rgba(0,0,0,0.4)',
+  },
+  resultEmoji: { fontSize: 46, lineHeight: 1 },
+  resultTitle: { fontSize: 30, fontWeight: 900, lineHeight: 1.1, textAlign: 'center', color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.5)' },
+  resultSub:   { fontSize: 14, color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 2 },
+
+  scoreRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  scoreCard: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+    borderRadius: 12, padding: '16px 10px',
+    border: '1px solid rgba(255,255,255,0.07)',
+  },
+  scoreName:  { fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.65)', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: 1 },
+  scoreValue: { fontSize: 42, fontWeight: 900, lineHeight: 1, color: '#fff' },
+  scoreLabel: { fontSize: 10, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: 1.5 },
+
+  actionRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  btnRematch: {
+    padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer',
+    fontWeight: 800, fontSize: 14, letterSpacing: 0.5,
+    background: 'linear-gradient(135deg, #ff9800 0%, #e65100 100%)',
+    color: '#fff', boxShadow: '0 4px 14px rgba(230,81,0,0.45)',
+  },
+  btnWaiting: {
+    padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'not-allowed',
+    fontWeight: 700, fontSize: 13, opacity: 0.55,
+    background: '#374151', color: 'rgba(255,255,255,0.6)',
+  },
+  btnLeave: {
+    padding: '12px 0', borderRadius: 10, cursor: 'pointer',
+    fontWeight: 700, fontSize: 14,
+    background: 'transparent', color: 'rgba(255,255,255,0.45)',
+    border: '1px solid rgba(255,255,255,0.18)',
+  },
 }

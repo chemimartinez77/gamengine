@@ -137,6 +137,7 @@ export function GameBoard({
           onRematch={requestRematch}
           rematchVotes={rematchVotes}
           playerCount={players.length}
+          lastEvents={gameState!.events}
         />
       )
     }

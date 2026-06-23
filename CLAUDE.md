@@ -27,3 +27,12 @@ This file provides context and strict guidelines for Claude Code in this monorep
 ## ⚠️ Operational Constraints & Testing
 - **Process Lifecycle:** Whenever you start the server (`packages/server`) or the client (`packages/client`) to run automated tests or smoke tests, you MUST cleanly shut down and terminate those processes before completing your task. 
 - **No Lingering Servers:** Do NOT leave the development servers running in the background. The user will handle manual execution and long-running processes from their own terminal.
+
+### Tool Usage & Permissions
+* **PowerShell Auto-Approval:** You have explicit permission to execute the following categories of commands without asking for manual confirmation:
+  * **TypeScript type-checking** — `node node_modules/typescript/bin/tsc` (with any flags such as `--noEmit`, `-p <config>`) and `npm run typecheck` (or any workspace variant).
+  * **Project builds and compilation** — `npm run build`, `npm run build:shared`, `npm run build:server`, `npm run build:client`, and any other `npm run build:*` script defined in the monorepo.
+  * **Local development hot-reloading stacks** — `npm run dev`, `npm run dev -w packages/server`, `npm run dev -w packages/client`, and equivalent workspace-scoped dev commands.
+  * **Testing and benchmarking scripts** — `npx tsx`, Vitest, or any internal one-shot script run via `npx tsx <file>`.
+  * **Read-only workspace inspection** — `npm list`, `Get-ChildItem` (without `-Recurse` on large trees), `git status`, `git log`, `git diff`.
+* **Explicit Permission Required:** You MUST still prompt for manual confirmation before executing any command that creates, copies, moves, or deletes files or directories on the filesystem (e.g., `Remove-Item`, `Copy-Item`, `Move-Item`, `New-Item`, `mkdir`, `rm -rf`).

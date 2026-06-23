@@ -1,4 +1,4 @@
-import type { GameEngine, GameState, Move, Player } from './index.js';
+import type { GameEngine, GameState, Move, Player, MancalaEvent } from './index.js';
 import { GameError } from './index.js';
 
 // Board layout (14 positions):
@@ -25,12 +25,10 @@ function pitsOf(playerIndex: number): number[] {
     : [7, 8, 9, 10, 11, 12];
 }
 
-// Absolute board index for a relative pit (0–5) of a player.
 function absolutePit(playerIndex: number, relativePit: number): number {
   return playerIndex === 0 ? relativePit : relativePit + 7;
 }
 
-// The pit directly opposite on the enemy side.
 function oppositePit(boardIndex: number): number {
   return 12 - boardIndex;
 }
@@ -39,7 +37,7 @@ function detectWinner(board: number[]): string | null {
   const p0Empty = pitsOf(0).every((i) => board[i] === 0);
   const p1Empty = pitsOf(1).every((i) => board[i] === 0);
   if (!p0Empty && !p1Empty) return null;
-  return 'RESOLVE'; // caller handles final sweep and comparison
+  return 'RESOLVE';
 }
 
 export const mancalaEngine: GameEngine = {
@@ -54,6 +52,7 @@ export const mancalaEngine: GameEngine = {
     const relativePit: number = move.data.pit;
     const board = [...(state.board as number[])];
     const activePlayer = state.turn;
+    const events: MancalaEvent[] = [];
 
     if (state.players[activePlayer].id !== move.playerId) {
       throw new GameError('NOT_YOUR_TURN');
@@ -69,26 +68,31 @@ export const mancalaEngine: GameEngine = {
     board[fromIndex] = 0;
     let current = fromIndex;
     const enemyStore = storeOf(1 - activePlayer);
+    const ownStore   = storeOf(activePlayer);
 
     while (seeds > 0) {
       current = (current + 1) % BOARD_SIZE;
-      if (current === enemyStore) continue; // skip opponent's store
+      if (current === enemyStore) continue;
       board[current]++;
       seeds--;
     }
 
-    // Extra turn: last seed landed in own store
-    const ownStore = storeOf(activePlayer);
     let nextTurn = activePlayer;
-    if (current !== ownStore) {
-      // Capture: last seed in own empty pit with seeds opposite
+
+    if (current === ownStore) {
+      // Last seed landed in own store → extra turn
+      events.push({ type: 'EXTRA_TURN', playerIndex: activePlayer });
+    } else {
+      // Capture: last seed in own empty pit, non-empty opposite pit
       const ownPits = pitsOf(activePlayer);
       if (ownPits.includes(current) && board[current] === 1) {
         const opp = oppositePit(current);
         if (board[opp] > 0) {
+          const capturedOpponent = board[opp];
           board[ownStore] += board[opp] + 1;
           board[opp] = 0;
           board[current] = 0;
+          events.push({ type: 'CAPTURE', playerIndex: activePlayer, seeds: capturedOpponent });
         }
       }
       nextTurn = 1 - activePlayer;
@@ -97,9 +101,14 @@ export const mancalaEngine: GameEngine = {
     // End-of-game sweep
     let winner: string | null = null;
     if (detectWinner(board) === 'RESOLVE') {
-      // Sweep remaining seeds into each player's store
+      const p0Remaining = pitsOf(0).reduce((s, i) => s + board[i], 0);
+      const p1Remaining = pitsOf(1).reduce((s, i) => s + board[i], 0);
+
       for (const i of pitsOf(0)) { board[STORE_P0] += board[i]; board[i] = 0; }
       for (const i of pitsOf(1)) { board[STORE_P1] += board[i]; board[i] = 0; }
+
+      if (p0Remaining > 0) events.push({ type: 'SWEEP', playerIndex: 0, seeds: p0Remaining });
+      if (p1Remaining > 0) events.push({ type: 'SWEEP', playerIndex: 1, seeds: p1Remaining });
 
       if (board[STORE_P0] > board[STORE_P1]) {
         winner = state.players[0].id;
@@ -110,11 +119,6 @@ export const mancalaEngine: GameEngine = {
       }
     }
 
-    return {
-      players: state.players,
-      turn: winner !== null ? nextTurn : nextTurn,
-      board,
-      winner,
-    };
+    return { players: state.players, turn: nextTurn, board, winner, events };
   },
 };

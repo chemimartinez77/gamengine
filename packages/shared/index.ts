@@ -7,11 +7,20 @@ export interface Player {
   name: string;
 }
 
+export type MancalaEventType = 'EXTRA_TURN' | 'CAPTURE' | 'SWEEP';
+
+export interface MancalaEvent {
+  type:        MancalaEventType;
+  playerIndex: number;
+  seeds?:      number;
+}
+
 export interface GameState {
   players: Player[];
   turn: number;
   board: any; // game-specific structure
   winner: string | null;
+  events?: MancalaEvent[];
 }
 
 export interface Move {
