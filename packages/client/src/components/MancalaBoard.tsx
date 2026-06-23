@@ -26,23 +26,38 @@ interface MancalaBoardProps {
 }
 
 // ── Seed renderer ──────────────────────────────────────────────────────────────
+// 0       → faint dot placeholder
+// 1–4     → dot grid (trivially countable at a glance)
+// 5–12    → crisp large number (text-xl) — counting 5+ dots is slow
+// 13+     → even larger number (text-2xl)
 function Seeds({ count }: { count: number }) {
-  if (count === 0) return <span style={seedStyles.empty}>·</span>
-  if (count > 12)  return <span style={seedStyles.bigNumber}>{count}</span>
+  if (count === 0)  return <span style={seedStyles.empty}>·</span>
+  if (count > 12)   return <span style={seedStyles.bigNumber}>{count}</span>
+  if (count >= 5)   return <span style={seedStyles.medNumber}>{count}</span>
   return (
     <span style={seedStyles.grid}>
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} style={seedStyles.dot} />
-      ))}
+      {Array.from({ length: count }, (_, i) => <span key={i} style={seedStyles.dot} />)}
     </span>
   )
 }
 
 const seedStyles: Record<string, React.CSSProperties> = {
-  empty:     { color: 'rgba(240,210,120,0.2)', fontSize: 18 },
-  bigNumber: { fontSize: 22, fontWeight: 800, color: '#f0d880', textShadow: '0 1px 4px rgba(0,0,0,0.9)' },
-  grid:      { display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', alignItems: 'center', width: '100%' },
-  dot:       {
+  empty:     { color: 'rgba(240,210,120,0.18)', fontSize: 18 },
+  bigNumber: {
+    fontSize: 30, fontWeight: 900, color: '#f0d880',
+    textShadow: '0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.7)',
+    lineHeight: 1,
+  },
+  medNumber: {
+    fontSize: 22, fontWeight: 800, color: '#f0d880',
+    textShadow: '0 1px 5px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.6)',
+    lineHeight: 1,
+  },
+  grid: {
+    display: 'flex', flexWrap: 'wrap', gap: 3,
+    justifyContent: 'center', alignItems: 'center', width: '100%',
+  },
+  dot: {
     width: 8, height: 8, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
     background: 'radial-gradient(circle at 35% 30%, #fdeea0, #c8a030)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.7), inset 0 -1px 2px rgba(0,0,0,0.3)',
@@ -57,19 +72,14 @@ const LOG_ICONS: Record<string, string> = {
 }
 
 const LOG_COLORS: Record<string, React.CSSProperties> = {
-  EXTRA_TURN: { background: 'rgba(59,130,246,0.18)', borderColor: 'rgba(59,130,246,0.35)', color: '#93c5fd' },
-  CAPTURE:    { background: 'rgba(251,191,36,0.20)', borderColor: 'rgba(251,191,36,0.45)',  color: '#fcd34d' },
+  EXTRA_TURN: { background: 'rgba(59,130,246,0.18)',  borderColor: 'rgba(59,130,246,0.35)', color: '#93c5fd' },
+  CAPTURE:    { background: 'rgba(251,191,36,0.20)',  borderColor: 'rgba(251,191,36,0.45)', color: '#fcd34d' },
   SWEEP:      { background: 'rgba(167,139,250,0.18)', borderColor: 'rgba(167,139,250,0.35)', color: '#c4b5fd' },
 }
 
-function formatEvent(
-  ev: MancalaEvent,
-  myIndex: number,
-  playerNames: [string, string],
-): string {
+function formatEvent(ev: MancalaEvent, myIndex: number, playerNames: [string, string]): string {
   const isMe = ev.playerIndex === myIndex
   const name = playerNames[ev.playerIndex]
-
   if (ev.type === 'EXTRA_TURN') {
     return isMe
       ? '¡Turno extra! Tu última semilla cayó en tu almacén.'
@@ -80,11 +90,10 @@ function formatEvent(
       ? `¡Gran captura! Te llevas tu semilla y las ${ev.seeds} semillas del hoyo opuesto.`
       : `${name} captura ${ev.seeds} semillas del hoyo opuesto.`
   }
-  // SWEEP
   return `Limpieza final: ${ev.seeds} semillas al almacén de ${name}.`
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+// ── Visual constants ───────────────────────────────────────────────────────────
 const BOARD_GRADIENT = 'linear-gradient(160deg, #d49450 0%, #b06820 35%, #c27830 65%, #96571e 100%)'
 const WOOD_FRAME     = '0 10px 36px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.25)'
 const PIT_BG         = '#170900'
@@ -108,38 +117,59 @@ export function MancalaBoard({
   const p1Pits = board.slice(7, 13)
   const store1 = board[13]
 
-  // ── Event log state ──────────────────────────────────────────────────────────
+  // ── Event log ────────────────────────────────────────────────────────────────
   type LogEntry = { id: number; text: string; type: string }
-  const [log, setLog]     = useState<LogEntry[]>([])
-  const logIdRef          = useRef(0)
-  const playerNamesRef    = useRef(playerNames)
-  playerNamesRef.current  = playerNames
-  const prevGameOverRef   = useRef(gameOver)
+  const [log, setLog]    = useState<LogEntry[]>([])
+  const logIdRef         = useRef(0)
+  const playerNamesRef   = useRef(playerNames)
+  playerNamesRef.current = playerNames
+  const prevGameOverRef  = useRef(gameOver)
 
-  // Clear log when a new game begins (gameOver flips false after a rematch)
   useEffect(() => {
-    if (prevGameOverRef.current && !gameOver) {
-      setLog([])
-    }
+    if (prevGameOverRef.current && !gameOver) setLog([])
     prevGameOverRef.current = gameOver
   }, [gameOver])
 
-  // Append new events to the top of the log
   useEffect(() => {
     if (!lastEvents || lastEvents.length === 0) return
     const names = playerNamesRef.current
     setLog(prev => {
       const newEntries: LogEntry[] = lastEvents.map(ev => ({
-        id:   ++logIdRef.current,
-        text: formatEvent(ev, myIndex, names),
-        type: ev.type,
+        id: ++logIdRef.current, text: formatEvent(ev, myIndex, names), type: ev.type,
       }))
       return [...newEntries, ...prev].slice(0, MAX_LOG)
     })
   }, [lastEvents, myIndex])
 
+  // ── Pit-change flash detection ────────────────────────────────────────────────
+  // flashKeys[absIdx] increments whenever that pit's seed count changes.
+  // Pits render an overlay <span key={flashKey}> which remounts on each
+  // increment, restarting the CSS animation from scratch without remounting
+  // the button itself.
+  const [flashKeys, setFlashKeys] = useState<Record<number, number>>({})
+  const prevBoardRef = useRef<number[]>([...board])
+
+  useEffect(() => {
+    const prev = prevBoardRef.current
+    const changed: number[] = []
+    for (let i = 0; i < board.length; i++) {
+      if (i === 6 || i === 13) continue // stores update every move — skip
+      if (prev[i] !== board[i]) changed.push(i)
+    }
+    if (changed.length > 0) {
+      setFlashKeys(fk => {
+        const next = { ...fk }
+        changed.forEach(i => { next[i] = (next[i] ?? 0) + 1 })
+        return next
+      })
+    }
+    prevBoardRef.current = [...board]
+  }, [board])
+
   // ── Sub-components ───────────────────────────────────────────────────────────
   function Pit({ relativePit, playerIndex }: { relativePit: number; playerIndex: number }) {
+    const absIdx   = playerIndex === 0 ? relativePit : relativePit + 7
+    const flashKey = flashKeys[absIdx] ?? 0
     const seeds    = playerIndex === 0 ? p0Pits[relativePit] : p1Pits[relativePit]
     const isOwner  = playerIndex === myIndex
     const canClick = isMyTurn && !gameOver && isOwner && seeds > 0
@@ -153,11 +183,14 @@ export function MancalaBoard({
           opacity:   !isOwner && !gameOver ? 0.72 : 1,
           transform: canClick ? 'translateY(-1px)' : 'none',
           transition: 'box-shadow 0.2s ease, transform 0.1s ease, opacity 0.2s ease',
+          position: 'relative',
         }}
         disabled={!canClick}
         onClick={() => onMove(relativePit)}
         title={canClick ? `Hoyo ${relativePit + 1} — ${seeds} semillas` : undefined}
       >
+        {/* Flash overlay — key remount restarts the animation */}
+        {flashKey > 0 && <span key={flashKey} style={styles.pitFlashOverlay} />}
         <Seeds count={seeds} />
       </button>
     )
@@ -191,13 +224,19 @@ export function MancalaBoard({
 
   return (
     <>
-      {/* CSS keyframe — injected once, scoped by class name */}
+      {/* CSS keyframes — injected once per page load */}
       <style>{`
         @keyframes mancalaLogIn {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         .mancala-log-new { animation: mancalaLogIn 0.3s ease; }
+
+        @keyframes mancalaPitFlash {
+          0%   { box-shadow: 0 0 0 0px  rgba(103,232,249,0.00); opacity: 0; }
+          18%  { box-shadow: 0 0 0 5px  rgba(103,232,249,0.90), 0 0 22px rgba(103,232,249,0.55); opacity: 1; }
+          100% { box-shadow: 0 0 0 2px  rgba(103,232,249,0.06); opacity: 0; }
+        }
       `}</style>
 
       <div style={styles.wrapper}>
@@ -230,20 +269,32 @@ export function MancalaBoard({
           <Store playerIndex={1} count={store1} />
 
           <div style={styles.pitsArea}>
+            {/* Directional flow guide — P1 (top row, seeds flow leftward) */}
+            <div style={{ ...styles.flowGuide, justifyContent: 'flex-start' }}>
+              ← Flujo del juego
+            </div>
+
             <div style={styles.row}>
               {[5, 4, 3, 2, 1, 0].map((i) => (
                 <Pit key={i} relativePit={i} playerIndex={1} />
               ))}
             </div>
+
             <div style={styles.indexRow}>
               {[1, 2, 3, 4, 5, 6].map((n) => (
                 <span key={n} style={styles.indexLabel}>{n}</span>
               ))}
             </div>
+
             <div style={styles.row}>
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <Pit key={i} relativePit={i} playerIndex={0} />
               ))}
+            </div>
+
+            {/* Directional flow guide — P0 (bottom row, seeds flow rightward) */}
+            <div style={{ ...styles.flowGuide, justifyContent: 'flex-end' }}>
+              Flujo del juego →
             </div>
           </div>
 
@@ -295,19 +346,11 @@ export function MancalaBoard({
             }}>
               <span style={styles.resultEmoji}>{isDraw ? '🤝' : iWon ? '🏆' : '😔'}</span>
               <span style={styles.resultTitle}>
-                {isDraw
-                  ? '¡Empate!'
-                  : iWon
-                    ? '¡Ganaste!'
-                    : iLost
-                      ? 'Perdiste'
-                      : `¡${winnerName} gana!`}
+                {isDraw ? '¡Empate!' : iWon ? '¡Ganaste!' : iLost ? 'Perdiste' : `¡${winnerName} gana!`}
               </span>
               {!isDraw && winnerName && (
                 <span style={styles.resultSub}>
-                  {iWon
-                    ? `¡Bien jugado, ${playerNames[myIndex]}!`
-                    : `${winnerName} gana esta ronda.`}
+                  {iWon ? `¡Bien jugado, ${playerNames[myIndex]}!` : `${winnerName} gana esta ronda.`}
                 </span>
               )}
             </div>
@@ -338,13 +381,9 @@ export function MancalaBoard({
                   Esperando rival… ({rematchVotes.length}/{playerCount})
                 </button>
               ) : (
-                <button style={styles.btnRematch} onClick={onRematch}>
-                  Revancha
-                </button>
+                <button style={styles.btnRematch} onClick={onRematch}>Revancha</button>
               )}
-              <button style={styles.btnLeave} onClick={onLeave}>
-                Volver al lobby
-              </button>
+              <button style={styles.btnLeave} onClick={onLeave}>Volver al lobby</button>
             </div>
           </div>
         )}
@@ -383,11 +422,20 @@ const styles: Record<string, React.CSSProperties> = {
   storeCount:    { fontSize: 34, fontWeight: 800, lineHeight: 1, color: '#f0d880', textShadow: '0 2px 8px rgba(0,0,0,0.9)' },
   storeSubLabel: { fontSize: 9, color: 'rgba(240,210,120,0.35)', textTransform: 'uppercase', letterSpacing: 1.5 },
 
-  // Pits grid
-  pitsArea:   { flex: 1, display: 'flex', flexDirection: 'column', gap: 6 },
-  row:        { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
-  indexRow:   { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
-  indexLabel: { textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.3)', userSelect: 'none', fontWeight: 700, letterSpacing: 0.5 },
+  // Pits area
+  pitsArea:  { flex: 1, display: 'flex', flexDirection: 'column', gap: 4 },
+  row:       { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
+  indexRow:  { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 },
+  indexLabel:{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.3)', userSelect: 'none', fontWeight: 700, letterSpacing: 0.5 },
+
+  // Flow direction guides — etched into the wood
+  flowGuide: {
+    display: 'flex', alignItems: 'center',
+    fontSize: 8, fontWeight: 700, letterSpacing: 1.8, textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.2)',
+    padding: '0 2px',
+    userSelect: 'none',
+  },
 
   // Circular carved pits
   pit: {
@@ -395,6 +443,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: 6, minWidth: 0,
     border: '2px solid rgba(0,0,0,0.48)',
+    overflow: 'visible',
+  },
+
+  // Cyan glow ring overlay — positioned just outside the pit circle
+  pitFlashOverlay: {
+    position: 'absolute', inset: '-4px', borderRadius: '50%',
+    pointerEvents: 'none', zIndex: 2,
+    animation: 'mancalaPitFlash 0.85s ease forwards',
   },
 
   // Player chips
@@ -411,24 +467,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logHeader: {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '8px 12px',
-    fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
+    padding: '8px 12px', fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
     color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase',
     borderBottom: '1px solid rgba(255,255,255,0.06)',
   },
   logHeaderIcon: { fontSize: 12 },
-  logList:  { listStyle: 'none', margin: 0, padding: '4px 0' },
-  logEntry: {
+  logList:   { listStyle: 'none', margin: 0, padding: '4px 0' },
+  logEntry:  {
     display: 'flex', alignItems: 'flex-start', gap: 8,
     padding: '6px 12px', fontSize: 12, fontWeight: 500,
-    borderLeft: '3px solid transparent',
-    lineHeight: 1.4,
+    borderLeft: '3px solid transparent', lineHeight: 1.4,
   },
-  logIcon: { fontSize: 13, flexShrink: 0, marginTop: 1 },
-  logText: { flex: 1 },
+  logIcon:   { fontSize: 13, flexShrink: 0, marginTop: 1 },
+  logText:   { flex: 1 },
 
   // End-game overlay
-  overlay:     {
+  overlay: {
     marginTop: 22, borderRadius: 18, padding: '24px 20px',
     background: '#111827',
     boxShadow: '0 16px 48px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)',
@@ -443,9 +497,8 @@ const styles: Record<string, React.CSSProperties> = {
   resultEmoji: { fontSize: 46, lineHeight: 1 },
   resultTitle: { fontSize: 30, fontWeight: 900, lineHeight: 1.1, textAlign: 'center', color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.5)' },
   resultSub:   { fontSize: 14, color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 2 },
-
-  scoreRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  scoreCard: {
+  scoreRow:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  scoreCard:   {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
     borderRadius: 12, padding: '16px 10px',
     border: '1px solid rgba(255,255,255,0.07)',
@@ -453,7 +506,6 @@ const styles: Record<string, React.CSSProperties> = {
   scoreName:  { fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.65)', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: 1 },
   scoreValue: { fontSize: 42, fontWeight: 900, lineHeight: 1, color: '#fff' },
   scoreLabel: { fontSize: 10, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: 1.5 },
-
   actionRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
   btnRematch: {
     padding: '12px 0', border: 'none', borderRadius: 10, cursor: 'pointer',

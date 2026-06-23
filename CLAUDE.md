@@ -30,7 +30,7 @@ This file provides context and strict guidelines for Claude Code in this monorep
 
 ### Tool Usage & Permissions
 * **PowerShell Auto-Approval:** You have explicit permission to execute the following categories of commands without asking for manual confirmation:
-  * **TypeScript type-checking** — `node node_modules/typescript/bin/tsc` (with any flags such as `--noEmit`, `-p <config>`) and `npm run typecheck` (or any workspace variant).
+  * **TypeScript type-checking** — Direct TypeScript compiler invocations via node/tsc across ANY workspace packages (e.g., `node node_modules/typescript/bin/tsc` with flags like `--noEmit`, `-p packages/client/tsconfig.json`, `-p packages/server/tsconfig.json`) and `npm run typecheck` (or any workspace variant).
   * **Project builds and compilation** — `npm run build`, `npm run build:shared`, `npm run build:server`, `npm run build:client`, and any other `npm run build:*` script defined in the monorepo.
   * **Local development hot-reloading stacks** — `npm run dev`, `npm run dev -w packages/server`, `npm run dev -w packages/client`, and equivalent workspace-scoped dev commands.
   * **Testing and benchmarking scripts** — `npx tsx`, Vitest, or any internal one-shot script run via `npx tsx <file>`.
