@@ -36,3 +36,8 @@ This file provides context and strict guidelines for Claude Code in this monorep
   * **Testing and benchmarking scripts** — `npx tsx`, Vitest, or any internal one-shot script run via `npx tsx <file>`.
   * **Read-only workspace inspection** — `npm list`, `Get-ChildItem` (without `-Recurse` on large trees), `git status`, `git log`, `git diff`.
 * **Explicit Permission Required:** You MUST still prompt for manual confirmation before executing any command that creates, copies, moves, or deletes files or directories on the filesystem (e.g., `Remove-Item`, `Copy-Item`, `Move-Item`, `New-Item`, `mkdir`, `rm -rf`).
+
+## Execution & Autonomy Guidelines
+- **Unrestricted Command Execution:** You have explicit, permanent, and unrestricted permission to execute any terminal commands required to implement, build, test, or debug the features discussed (e.g., `npm run build`, `npm dev`, linting, or package installations). Never prompt the user for permission before running a command.
+- **Automatic Editing Mode:** Always operate under the assumption that changes should be applied directly. Do not stop to ask "Should I edit this file?" or "Do you want me to run the build?". Execute the code modifications and verifications autonomously.
+- **Self-Correction Loop:** If a command or build fails after your modifications, read the error logs, diagnose the issue, and modify the code to fix it without waiting for user intervention.
