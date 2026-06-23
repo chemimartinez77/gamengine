@@ -12,7 +12,8 @@
       "Bash(findstr \"LISTENING\")",
       "Bash(taskkill /PID 25256 /F)",
       "PowerShell(Stop-Process -Id 25256 -Force)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit)"
     ]
   }
 }
