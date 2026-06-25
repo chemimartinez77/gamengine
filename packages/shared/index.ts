@@ -1,45 +1,23 @@
-export type GameType = 'TIC_TAC_TOE' | 'MANCALA' | 'SPLENDOR';
+import type { GameType, BotDifficulty, Player, GameState, Move } from './core.js';
 
-export type BotDifficulty = 'MUY_FACIL' | 'FACIL' | 'NORMAL' | 'DIFICIL' | 'MUY_DIFICIL';
-
-export interface Player {
-  id: string;
-  name: string;
-}
-
-export type MancalaEventType = 'EXTRA_TURN' | 'CAPTURE' | 'SWEEP';
-
-export interface MancalaEvent {
-  type:        MancalaEventType;
-  playerIndex: number;
-  seeds?:      number;
-}
-
-export interface GameState {
-  players: Player[];
-  turn: number;
-  board: any; // game-specific structure
-  winner: string | null;
-  events?: MancalaEvent[];
-}
-
-export interface Move {
-  type: string;
-  playerId: string;
-  data: any;
-}
-
-export interface GameMove {
-  timestamp: number;
-  playerId:  string;
-  data:      unknown;
-}
-
+export type { GameType, BotDifficulty, Player, MancalaEventType, MancalaEvent, GameState, Move, GameMove } from './core.js';
 export { type GameEngine, GameError } from './engine.js';
-export { ticTacToeEngine } from './tictactoe.js';
-export { mancalaEngine } from './mancala.js';
-export type { SplendorCard, SplendorNoble, GemType, TokenType, SplendorPlayer, SplendorGameState, SplendorAction } from './splendor.js';
-export { LEVEL1_CARDS, LEVEL2_CARDS, LEVEL3_CARDS, NOBLES } from './splendorCards.js';
+export { ticTacToeEngine } from './src/games/tictactoe/index.js';
+export { mancalaEngine }   from './src/games/mancala/index.js';
+export type { SplendorCard, SplendorNoble, GemType, TokenType, SplendorPlayer, SplendorGameState, SplendorAction } from './src/games/splendor/index.js';
+export { LEVEL1_CARDS, LEVEL2_CARDS, LEVEL3_CARDS, NOBLES } from './src/games/splendor/cards.js';
+export type {
+  LuxuryGood, CommonGood, GoodsType, CardType, JaipurCard,
+  BonusTier, JaipurTokensState, JaipurEarnedToken,
+  JaipurPlayerState, JaipurGameState, JaipurMove,
+} from './src/games/jaipur/index.js';
+export {
+  JAIPUR_MAX_HAND, JAIPUR_MARKET_SIZE, JAIPUR_STARTING_MARKET_CAMELS,
+  JAIPUR_STARTING_HAND, JAIPUR_CAMEL_TOKEN_VALUE, JAIPUR_SEALS_TO_WIN,
+  LUXURY_GOODS, COMMON_GOODS, ALL_GOODS, JAIPUR_MIN_SALE,
+  JAIPUR_DECK_COMPOSITION, JAIPUR_GOODS_TOKEN_VALUES, JAIPUR_BONUS_TOKEN_VALUES,
+  bonusTierForCount,
+} from './src/games/jaipur/index.js';
 
 // Socket.IO event contracts — shared between server and client
 export interface ServerToClientEvents {

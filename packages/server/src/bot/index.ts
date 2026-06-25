@@ -1,6 +1,6 @@
 import type { GameState, GameType, Move, BotDifficulty } from '@gamengine/shared';
-import { getBestMancalaMove, getRandomMancalaMove } from './mancalaBot.js';
-import { getBestTicTacToeMove } from './tictactoeBot.js';
+import { getBestMancalaMove, getRandomMancalaMove } from '../games/mancala/bot.js';
+import { getBestTicTacToeMove } from '../games/tictactoe/bot.js';
 
 // Minimax search depth per difficulty for Mancala.
 // MUY_FACIL uses random selection (depth is ignored).

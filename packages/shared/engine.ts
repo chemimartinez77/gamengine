@@ -1,4 +1,4 @@
-import type { Player, GameState, Move } from './index.js';
+import type { Player, GameState, Move } from './core.js';
 
 export class GameError extends Error {
   constructor(message: string) {

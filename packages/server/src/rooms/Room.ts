@@ -1,6 +1,7 @@
 import type { GameState, GameEngine, GameMove, Move, Player, RoomSummary, GameType } from '@gamengine/shared';
 import { GameError, ticTacToeEngine, mancalaEngine } from '@gamengine/shared';
 import { splendorGameEngine } from '../games/splendor/gameEngine.js';
+import { jaipurGameEngine } from '../games/jaipur/gameEngine.js';
 
 export type RoomStatus = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
@@ -10,6 +11,7 @@ const ENGINE_REGISTRY: Record<GameType, GameEngine> = {
   TIC_TAC_TOE: ticTacToeEngine,
   MANCALA:     mancalaEngine,
   SPLENDOR:    splendorGameEngine,
+  JAIPUR:      jaipurGameEngine,
 };
 
 export class Room {

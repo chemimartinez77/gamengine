@@ -8,7 +8,8 @@
       "PowerShell(git add CLAUDE.md)",
       "PowerShell(npm run build:client 2>&1)",
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\proyectos\\\\gamengine\\\\packages\\\\client\\\\src\\\\components\\\\games\\\\splendor\")",
-      "PowerShell(node node_modules/typescript/bin/tsc -p packages/shared/tsconfig.json --noEmit 2>&1)"
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/shared/tsconfig.json --noEmit 2>&1)",
+      "PowerShell(npm run build 2>&1)"
     ]
   }
 }

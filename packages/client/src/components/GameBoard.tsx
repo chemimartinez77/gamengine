@@ -1,9 +1,9 @@
 import type { GameState, GameType, Move, Player } from '@gamengine/shared'
 import type { SplendorGameState } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
-import { TicTacToeGrid } from './TicTacToeGrid'
-import { MancalaBoard } from './MancalaBoard'
-import { SplendorBoard } from './SplendorBoard'
+import { TicTacToeGrid } from './games/tictactoe/TicTacToeGrid'
+import { MancalaBoard } from './games/mancala/MancalaBoard'
+import { SplendorBoard } from './games/splendor/SplendorBoard'
 
 interface GameBoardProps {
   socket:          AppSocket
