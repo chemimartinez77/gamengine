@@ -1,6 +1,7 @@
-import type { GameState, GameType, Move, BotDifficulty } from '@gamengine/shared';
+import type { GameState, GameType, Move, BotDifficulty, JaipurGameState } from '@gamengine/shared';
 import { getBestMancalaMove, getRandomMancalaMove } from '../games/mancala/bot.js';
 import { getBestTicTacToeMove } from '../games/tictactoe/bot.js';
+import { getJaipurBotMove } from '../games/jaipur/bot.js';
 
 // Minimax search depth per difficulty for Mancala.
 // MUY_FACIL uses random selection (depth is ignored).
@@ -32,6 +33,12 @@ export function getBotMove(
     const board = state.board as string[];
     const cell  = getBestTicTacToeMove(board, botIndex, difficulty);
     return { type: 'place', playerId: botPlayerId, data: { cell } };
+  }
+
+  if (gameType === 'JAIPUR') {
+    const jaipur = state.board as JaipurGameState;
+    const move   = getJaipurBotMove(jaipur, botIndex, difficulty);
+    return { type: 'place', playerId: botPlayerId, data: move };
   }
 
   throw new Error(`Unknown game type: ${gameType}`);
