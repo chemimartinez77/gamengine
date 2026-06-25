@@ -1,7 +1,9 @@
 import type { GameState, GameType, Move, Player } from '@gamengine/shared'
+import type { SplendorGameState } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
 import { TicTacToeGrid } from './TicTacToeGrid'
 import { MancalaBoard } from './MancalaBoard'
+import { SplendorBoard } from './SplendorBoard'
 
 interface GameBoardProps {
   socket:          AppSocket
@@ -82,6 +84,23 @@ export function GameBoard({
   const myIndex   = gameState.players.findIndex((p) => p.id === myPlayerId)
   const mySymbol  = myIndex === 0 ? 'X' : 'O'
 
+  // Splendor manages its own full-page layout
+  if (currentGameType === 'SPLENDOR') {
+    return (
+      <SplendorBoard
+        splendorState={gameState.board as SplendorGameState}
+        myPlayerId={myPlayerId}
+        isMyTurn={isMyTurn}
+        gameOver={gameOver}
+        onAction={(action) => sendMove(action)}
+        onLeave={leaveRoom}
+        onRematch={requestRematch}
+        rematchVotes={rematchVotes}
+        playerCount={players.length}
+      />
+    )
+  }
+
   let statusText = ''
   if (gameState.winner === 'DRAW') {
     statusText = "It's a draw!"
@@ -105,6 +124,7 @@ export function GameBoard({
   const GAME_TITLES: Record<GameType, string> = {
     TIC_TAC_TOE: 'Tic-Tac-Toe',
     MANCALA:     'Mancala',
+    SPLENDOR:    'Splendor',
   }
 
   function renderBoard() {

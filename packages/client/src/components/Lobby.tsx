@@ -5,6 +5,7 @@ import type { AppSocket } from '../context/SocketContext'
 const GAME_TYPE_LABELS: Record<GameType, string> = {
   TIC_TAC_TOE: 'Tres en raya',
   MANCALA:     'Mancala',
+  SPLENDOR:    'Splendor',
 }
 
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
@@ -67,6 +68,27 @@ const INSTRUCTIONS: Record<GameType, { title: string; rules: Rule[] }> = {
       {
         heading: 'Fin de partida',
         body: "Cuando los hoyos de un jugador quedan vacíos, el rival barre sus semillas restantes a su almacén. Quien tenga más semillas gana.",
+      },
+    ],
+  },
+  SPLENDOR: {
+    title: 'Cómo jugar — Splendor',
+    rules: [
+      {
+        heading: 'Objetivo',
+        body: 'Consigue 15 puntos de prestigio comprando cartas de desarrollo. El jugador con más puntos al final de la ronda en que alguien llega a 15 gana.',
+      },
+      {
+        heading: 'Turno',
+        body: 'En tu turno puedes: tomar hasta 3 fichas de gemas de colores distintos, tomar 2 fichas del mismo color (si quedan ≥4), reservar una carta y tomar un oro, o comprar una carta de desarrollo pagando su coste en fichas.',
+      },
+      {
+        heading: 'Cartas',
+        body: 'Cada carta produce una gema permanente que descuenta su color en compras futuras. Las cartas de nivel superior requieren más gemas y dan más puntos de prestigio.',
+      },
+      {
+        heading: 'Nobles',
+        body: 'Al final de tu turno, si tienes la combinación de cartas que exige un noble, te visita automáticamente y te da 3 puntos.',
       },
     ],
   },
@@ -246,8 +268,9 @@ export function Lobby({ socket }: LobbyProps) {
               value={gameType}
               onChange={(e) => setGameType(e.target.value as GameType)}
             >
-              <option value="TIC_TAC_TOE">Tres en raya</option>
-              <option value="MANCALA">Mancala</option>
+              {(Object.keys(GAME_TYPE_LABELS) as GameType[]).map((g) => (
+                <option key={g} value={g}>{GAME_TYPE_LABELS[g]}</option>
+              ))}
             </select>
             <button
               style={styles.btnInstructions}
@@ -299,8 +322,9 @@ export function Lobby({ socket }: LobbyProps) {
                 value={botGameType}
                 onChange={(e) => setBotGameType(e.target.value as GameType)}
               >
-                <option value="TIC_TAC_TOE">Tres en raya</option>
-                <option value="MANCALA">Mancala</option>
+                {(Object.keys(GAME_TYPE_LABELS) as GameType[]).map((g) => (
+                  <option key={g} value={g}>{GAME_TYPE_LABELS[g]}</option>
+                ))}
               </select>
             </div>
             <div style={styles.botField}>

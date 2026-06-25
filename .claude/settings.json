@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm run build:shared 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Path \"packages\\\\server\\\\src\\\\games\\\\splendor\" -Force)",
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/server/tsconfig.json --noEmit 2>&1)",
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit 2>&1)",
+      "PowerShell(git add CLAUDE.md)",
+      "PowerShell(npm run build:client 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\proyectos\\\\gamengine\\\\packages\\\\client\\\\src\\\\components\\\\games\\\\splendor\")",
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/shared/tsconfig.json --noEmit 2>&1)"
+    ]
+  }
+}

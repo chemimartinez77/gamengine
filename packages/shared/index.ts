@@ -1,4 +1,4 @@
-export type GameType = 'TIC_TAC_TOE' | 'MANCALA';
+export type GameType = 'TIC_TAC_TOE' | 'MANCALA' | 'SPLENDOR';
 
 export type BotDifficulty = 'MUY_FACIL' | 'FACIL' | 'NORMAL' | 'DIFICIL' | 'MUY_DIFICIL';
 
@@ -38,6 +38,8 @@ export interface GameMove {
 export { type GameEngine, GameError } from './engine.js';
 export { ticTacToeEngine } from './tictactoe.js';
 export { mancalaEngine } from './mancala.js';
+export type { SplendorCard, SplendorNoble, GemType, TokenType, SplendorPlayer, SplendorGameState, SplendorAction } from './splendor.js';
+export { LEVEL1_CARDS, LEVEL2_CARDS, LEVEL3_CARDS, NOBLES } from './splendorCards.js';
 
 // Socket.IO event contracts — shared between server and client
 export interface ServerToClientEvents {
