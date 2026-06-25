@@ -1,9 +1,10 @@
 import type { GameState, GameType, Move, Player } from '@gamengine/shared'
-import type { SplendorGameState } from '@gamengine/shared'
+import type { SplendorGameState, JaipurGameState, JaipurMove } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
 import { TicTacToeGrid } from './games/tictactoe/TicTacToeGrid'
 import { MancalaBoard } from './games/mancala/MancalaBoard'
 import { SplendorBoard } from './games/splendor/SplendorBoard'
+import { JaipurBoard } from './games/jaipur/JaipurBoard'
 
 interface GameBoardProps {
   socket:          AppSocket
@@ -101,6 +102,23 @@ export function GameBoard({
     )
   }
 
+  // Jaipur manages its own full-page layout
+  if (currentGameType === 'JAIPUR') {
+    return (
+      <JaipurBoard
+        jaipurState={gameState.board as JaipurGameState}
+        myPlayerId={myPlayerId}
+        isMyTurn={isMyTurn}
+        gameOver={gameOver}
+        onAction={(move: JaipurMove) => sendMove(move)}
+        onLeave={leaveRoom}
+        onRematch={requestRematch}
+        rematchVotes={rematchVotes}
+        playerCount={players.length}
+      />
+    )
+  }
+
   let statusText = ''
   if (gameState.winner === 'DRAW') {
     statusText = "It's a draw!"
@@ -125,6 +143,7 @@ export function GameBoard({
     TIC_TAC_TOE: 'Tic-Tac-Toe',
     MANCALA:     'Mancala',
     SPLENDOR:    'Splendor',
+    JAIPUR:      'Jaipur',
   }
 
   function renderBoard() {

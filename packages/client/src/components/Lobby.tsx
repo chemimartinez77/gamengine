@@ -6,6 +6,7 @@ const GAME_TYPE_LABELS: Record<GameType, string> = {
   TIC_TAC_TOE: 'Tres en raya',
   MANCALA:     'Mancala',
   SPLENDOR:    'Splendor',
+  JAIPUR:      'Jaipur',
 }
 
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
@@ -89,6 +90,31 @@ const INSTRUCTIONS: Record<GameType, { title: string; rules: Rule[] }> = {
       {
         heading: 'Nobles',
         body: 'Al final de tu turno, si tienes la combinación de cartas que exige un noble, te visita automáticamente y te da 3 puntos.',
+      },
+    ],
+  },
+  JAIPUR: {
+    title: 'Cómo jugar — Jaipur',
+    rules: [
+      {
+        heading: 'Objetivo',
+        body: 'Sé el mercader más rico al final de cada ronda para ganar un sello de Excelencia. El primero en conseguir 2 sellos gana la partida.',
+      },
+      {
+        heading: 'Tu turno',
+        body: 'En tu turno coges cartas O vendes cartas, nunca ambas. Al coger puedes: tomar 1 producto del mercado, intercambiar 2 o más cartas (productos y/o camellos) por productos del mercado, o coger TODOS los camellos.',
+      },
+      {
+        heading: 'Vender',
+        body: 'Vende cartas de un único tipo de producto y recibe sus fichas (de mayor a menor valor). Los productos de lujo (diamantes, oro, plata) requieren vender al menos 2 cartas.',
+      },
+      {
+        heading: 'Bonificaciones',
+        body: 'Vender 3, 4 o 5+ cartas a la vez te da una ficha de bonificación adicional. No puedes tener más de 7 cartas en la mano al final del turno (los camellos no cuentan).',
+      },
+      {
+        heading: 'Fin de ronda',
+        body: 'La ronda acaba si se agotan 3 tipos de fichas o el mazo no puede reponer el mercado. Quien tenga más camellos recibe la ficha de Camello (5 rupias). Gana la ronda quien sume más rupias.',
       },
     ],
   },

@@ -9,7 +9,8 @@
       "PowerShell(npm run build:client 2>&1)",
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\proyectos\\\\gamengine\\\\packages\\\\client\\\\src\\\\components\\\\games\\\\splendor\")",
       "PowerShell(node node_modules/typescript/bin/tsc -p packages/shared/tsconfig.json --noEmit 2>&1)",
-      "PowerShell(npm run build 2>&1)"
+      "PowerShell(npm run build 2>&1)",
+      "Bash(node -e \"const p=require\\('./packages/client/package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
     ]
   }
 }
