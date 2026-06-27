@@ -1,10 +1,11 @@
 import type { GameState, GameType, Move, Player } from '@gamengine/shared'
-import type { SplendorGameState, JaipurGameState, JaipurMove } from '@gamengine/shared'
+import type { SplendorGameState, JaipurGameState, JaipurMove, VirusGameState, VirusMove } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
 import { TicTacToeGrid } from './games/tictactoe/TicTacToeGrid'
 import { MancalaBoard } from './games/mancala/MancalaBoard'
 import { SplendorBoard } from './games/splendor/SplendorBoard'
 import { JaipurBoard } from './games/jaipur/JaipurBoard'
+import { VirusBoard } from './games/virus/VirusBoard'
 
 interface GameBoardProps {
   socket:          AppSocket
@@ -119,6 +120,23 @@ export function GameBoard({
     )
   }
 
+  // Virus! manages its own full-page layout
+  if (currentGameType === 'VIRUS') {
+    return (
+      <VirusBoard
+        virusState={gameState.board as VirusGameState}
+        myPlayerId={myPlayerId}
+        isMyTurn={isMyTurn}
+        gameOver={gameOver}
+        onAction={(move: VirusMove) => sendMove(move)}
+        onLeave={leaveRoom}
+        onRematch={requestRematch}
+        rematchVotes={rematchVotes}
+        playerCount={players.length}
+      />
+    )
+  }
+
   let statusText = ''
   if (gameState.winner === 'DRAW') {
     statusText = "It's a draw!"
@@ -144,6 +162,7 @@ export function GameBoard({
     MANCALA:     'Mancala',
     SPLENDOR:    'Splendor',
     JAIPUR:      'Jaipur',
+    VIRUS:       'Virus!',
   }
 
   function renderBoard() {

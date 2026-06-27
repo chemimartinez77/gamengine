@@ -2,16 +2,18 @@ import type { GameState, GameEngine, GameMove, Move, Player, RoomSummary, GameTy
 import { GameError, ticTacToeEngine, mancalaEngine } from '@gamengine/shared';
 import { splendorGameEngine } from '../games/splendor/gameEngine.js';
 import { jaipurGameEngine } from '../games/jaipur/gameEngine.js';
+import { virusGameEngine } from '../games/virus/gameEngine.js';
 
 export type RoomStatus = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
-const MAX_PLAYERS = 4;
+const DEFAULT_MAX_PLAYERS = 4;
 
 const ENGINE_REGISTRY: Record<GameType, GameEngine> = {
   TIC_TAC_TOE: ticTacToeEngine,
   MANCALA:     mancalaEngine,
   SPLENDOR:    splendorGameEngine,
   JAIPUR:      jaipurGameEngine,
+  VIRUS:       virusGameEngine,
 };
 
 export class Room {
@@ -124,7 +126,8 @@ export class Room {
   }
 
   isFull(): boolean {
-    return this.playerMap.size >= MAX_PLAYERS;
+    const max = ENGINE_REGISTRY[this.currentGameType].maxPlayers ?? DEFAULT_MAX_PLAYERS;
+    return this.playerMap.size >= max;
   }
 
   hasPlayerWithName(name: string): boolean {
@@ -134,12 +137,22 @@ export class Room {
     return false;
   }
 
+  /** When the active engine implements maskStateFor, emit per-socket views. */
+  supportsStateMasking(): boolean {
+    return typeof this.engine?.maskStateFor === 'function';
+  }
+
+  getMaskedStateFor(state: GameState, viewerId: string): GameState {
+    return this.engine?.maskStateFor?.(state, viewerId) ?? state;
+  }
+
   toSummary(): RoomSummary {
+    const max = ENGINE_REGISTRY[this.currentGameType].maxPlayers ?? DEFAULT_MAX_PLAYERS;
     return {
       roomId:          this.roomId,
       roomName:        this.roomName,
       playerCount:     this.playerMap.size,
-      maxPlayers:      MAX_PLAYERS,
+      maxPlayers:      max,
       hostId:          this.getHostPlayerId() ?? '',
       status:          this.status,
       currentGameType: this.currentGameType,

@@ -7,6 +7,7 @@ const GAME_TYPE_LABELS: Record<GameType, string> = {
   MANCALA:     'Mancala',
   SPLENDOR:    'Splendor',
   JAIPUR:      'Jaipur',
+  VIRUS:       'Virus!',
 }
 
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
@@ -118,6 +119,31 @@ const INSTRUCTIONS: Record<GameType, { title: string; rules: Rule[] }> = {
       },
     ],
   },
+  VIRUS: {
+    title: 'Cómo jugar — Virus!',
+    rules: [
+      {
+        heading: 'Objetivo',
+        body: 'Sé el primero en completar tu cuerpo con 4 órganos sanos de distinto color. Un órgano está sano si está libre, vacunado o inmunizado.',
+      },
+      {
+        heading: 'Tu turno',
+        body: 'Fase 1: juega 1 carta de tu mano O descarta las que quieras. Fase 2: roba hasta tener 3 cartas en mano. Si el mazo se agota, se baraja la pila de descartes.',
+      },
+      {
+        heading: 'Órganos y Virus',
+        body: 'Juega un órgano en tu propio cuerpo. Juega un virus sobre un órgano del rival del mismo color: lo infecta, destruye su vacuna o lo extirpa si ya estaba infectado.',
+      },
+      {
+        heading: 'Medicinas',
+        body: 'Juega una medicina sobre tu propio órgano del mismo color: cura un virus, vacuna un órgano libre o inmuniza uno ya vacunado. Los órganos inmunizados no pueden ser atacados.',
+      },
+      {
+        heading: 'Tratamientos',
+        body: 'Transplante: intercambia un órgano entre dos jugadores. Ladrón: roba un órgano rival. Contagio: propaga tus virus. Guante: todos descartan la mano. Error Médico: intercambia todo tu cuerpo con el de un rival.',
+      },
+    ],
+  },
 }
 
 // ── Modal de instrucciones ────────────────────────────────────────────────────
@@ -177,8 +203,8 @@ function InstructionsModal({
 interface LobbyProps { socket: AppSocket }
 
 export function Lobby({ socket }: LobbyProps) {
-  const [nick, setNick]         = useState('')
-  const [roomName, setRoomName] = useState('')
+  const [nick, setNick]         = useState('Chemi')
+  const [roomName, setRoomName] = useState('Dragon\'s Den')
   const [gameType, setGameType] = useState<GameType>('TIC_TAC_TOE')
   const [joinId, setJoinId]     = useState('')
   const [rooms, setRooms]       = useState<RoomSummary[]>([])

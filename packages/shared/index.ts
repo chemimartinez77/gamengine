@@ -19,6 +19,18 @@ export {
   bonusTierForCount,
 } from './src/games/jaipur/index.js';
 
+export type {
+  VirusCardType, VirusColor, TreatmentKind,
+  VirusCard, OrganSlot, OrganSlotStatus, VirusCuerpo,
+  VirusPlayerState, VirusGameState, VirusMove,
+} from './src/games/virus/index.js';
+export {
+  VIRUS_COLORS, VIRUS_HAND_SIZE, VIRUS_WIN_ORGANS,
+  VIRUS_CARDS_PER_COLOR, VIRUS_MULTICOLOR_COUNT,
+  VIRUS_TREATMENT_COUNTS, VIRUS_ATLAS_BACK,
+  virusAtlasIndex, colorsMatch, organSlotStatus, isOrganHealthy,
+} from './src/games/virus/index.js';
+
 // Socket.IO event contracts — shared between server and client
 export interface ServerToClientEvents {
   room_joined:        (roomId: string, gameState: GameState | null, gameType: GameType) => void;

@@ -1,7 +1,8 @@
-import type { GameState, GameType, Move, BotDifficulty, JaipurGameState } from '@gamengine/shared';
+import type { GameState, GameType, Move, BotDifficulty, JaipurGameState, VirusGameState } from '@gamengine/shared';
 import { getBestMancalaMove, getRandomMancalaMove } from '../games/mancala/bot.js';
 import { getBestTicTacToeMove } from '../games/tictactoe/bot.js';
 import { getJaipurBotMove } from '../games/jaipur/bot.js';
+import { getVirusBotMove } from '../games/virus/bot.js';
 
 // Minimax search depth per difficulty for Mancala.
 // MUY_FACIL uses random selection (depth is ignored).
@@ -39,6 +40,14 @@ export function getBotMove(
     const jaipur = state.board as JaipurGameState;
     const move   = getJaipurBotMove(jaipur, botIndex, difficulty);
     return { type: 'place', playerId: botPlayerId, data: move };
+  }
+
+  if (gameType === 'VIRUS') {
+    // The rich Virus! state lives in state.board (the outer GameState.players
+    // are plain {id,name} stubs). Mirrors how MANCALA/JAIPUR unwrap board above.
+    const virusState = state.board as VirusGameState;
+    const virusMove  = getVirusBotMove(virusState, botIndex, difficulty);
+    return { type: 'place', playerId: botPlayerId, data: virusMove };
   }
 
   throw new Error(`Unknown game type: ${gameType}`);
