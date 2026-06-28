@@ -6,6 +6,8 @@ import type {
 import {
   VIRUS_COLORS, colorsMatch, organSlotStatus, isOrganHealthy, VIRUS_WIN_ORGANS,
 } from '@gamengine/shared'
+import { VirusDebugPanel } from './VirusDebugPanel'
+import { isVirusDebugEnabled, logVirusTurn } from './virusDebug'
 
 // ─── CSS keyframe injection (once at module load) ─────────────────────────────
 ;(function injectStyles() {
@@ -540,7 +542,12 @@ function OpponentPanel({ player, eligible, transplanteHighlight, onSlotClick, on
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, color: '#fff', fontSize: 13 }}>{player.name}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, color: '#fff', fontSize: 13 }}>
+          {player.isBot && (
+            <span title="Jugador controlado por la IA" aria-label="Bot" style={{ fontSize: 11, opacity: 0.8, lineHeight: 1 }}>🤖</span>
+          )}
+          {player.name}
+        </span>
         <span style={{
           fontSize: 11, fontWeight: 800,
           color: healthyCount >= VIRUS_WIN_ORGANS ? '#00e676' : '#e8c074',
@@ -692,6 +699,14 @@ export function VirusBoard({
     setDiscardSet(new Set())
     setTransplanteStep(null)
   }, [virusState.turn])
+
+  // Dev debug stream: dump the active player's legal-move matrix on every turn.
+  const debugEnabled = isVirusDebugEnabled()
+  useEffect(() => {
+    if (!debugEnabled) return
+    const active = virusState.players[virusState.turn]
+    if (active) logVirusTurn(virusState, active.id)
+  }, [debugEnabled, virusState])
 
   // ── Eligible target computation ─────────────────────────────────────────────
 
@@ -873,6 +888,11 @@ export function VirusBoard({
   return (
     <div style={st.page}>
       {gameOverOverlay}
+
+      {/* Dev-only dual debug: visual legal-move panel (console stream handled in effect above) */}
+      {debugEnabled && myPlayerId && (
+        <VirusDebugPanel state={virusState} playerId={myPlayerId} />
+      )}
 
       {/* Header */}
       <div style={st.header}>

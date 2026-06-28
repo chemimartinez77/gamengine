@@ -1,0 +1,33 @@
+{
+  "scales": {
+    "cardWPct": 6.4,
+    "tokenWPct": 4.8,
+    "tokenStackOffset": 4
+  },
+  "anchors": {
+    "deck": { "topPct": 51, "leftPct": 21 },
+    "market": [
+      { "topPct": 51, "leftPct": 30.5 },
+      { "topPct": 51, "leftPct": 37.6 },
+      { "topPct": 51, "leftPct": 44.7 },
+      { "topPct": 51, "leftPct": 51.8 },
+      { "topPct": 51, "leftPct": 58.9 }
+    ],
+    "camel": { "topPct": 74, "leftPct": 78 },
+    "goods-diamonds": { "topPct": 15.5, "leftPct": 67 },
+    "goods-gold": { "topPct": 24.5, "leftPct": 67 },
+    "goods-silver": { "topPct": 35, "leftPct": 67 },
+    "goods-cloth": { "topPct": 42.5, "leftPct": 67 },
+    "goods-spice": { "topPct": 51.5, "leftPct": 67 },
+    "goods-leather": { "topPct": 60.5, "leftPct": 67 },
+    "bonus-bonus3": { "topPct": 74, "leftPct": 63 },
+    "bonus-bonus4": { "topPct": 74, "leftPct": 68 },
+    "bonus-bonus5": { "topPct": 74, "leftPct": 73 },
+    "structural-deckDrawSlot": { "topPct": 51, "leftPct": 21 },
+    "structural-deckDiscardSlot": { "topPct": 63, "leftPct": 21 },
+    "structural-botCamelPen": { "topPct": 22, "leftPct": 44 },
+    "structural-playerCamelPen": { "topPct": 80, "leftPct": 44 },
+    "structural-botScoreSeals": { "topPct": 13, "leftPct": 29 },
+    "structural-playerScoreSeals": { "topPct": 87, "leftPct": 29 }
+  }
+}

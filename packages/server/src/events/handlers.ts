@@ -4,6 +4,7 @@ import type { Room } from '../rooms/Room.js';
 import type { GameState } from '@gamengine/shared';
 import { BotRoom } from '../rooms/BotRoom.js';
 import { GameError } from '@gamengine/shared';
+import { registerBoardLayoutHandlers } from './boardLayout.js';
 
 function broadcastRooms(io: TypedServer, roomManager: RoomManager): void {
   io.emit('rooms_updated', roomManager.getRoomList());
@@ -79,6 +80,9 @@ export function registerHandlers(
 ): void {
   socket.emit('rooms_updated', roomManager.getRoomList());
 
+  // ── Dev-only: visual board layout editor persistence ────────────────────────
+  registerBoardLayoutHandlers(socket);
+
   // ── Create a public multiplayer room ────────────────────────────────────────
   socket.on('create_room', (roomName, gameType, player, callback) => {
     const sanitizedName = roomName.trim();
@@ -110,9 +114,9 @@ export function registerHandlers(
     const room = roomManager.createBotRoom(gameType, difficulty);
 
     // Human is player 0; bots fill subsequent indices.
-    // Virus! gets 2 bots (3-player experience); all other games get 1.
+    // Virus! gets 3 bots (4-player experience); all other games get 1.
     room.addPlayer(socket.id, sanitizedPlayer);
-    const botCount = gameType === 'VIRUS' ? 2 : 1;
+    const botCount = gameType === 'VIRUS' ? 3 : 1;
     for (let i = 0; i < botCount; i++) room.addBotPlayer();
 
     socket.join(room.roomId);

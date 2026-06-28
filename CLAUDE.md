@@ -28,16 +28,21 @@ This file provides context and strict guidelines for Claude Code in this monorep
 - **Process Lifecycle:** Whenever you start the server (`packages/server`) or the client (`packages/client`) to run automated tests or smoke tests, you MUST cleanly shut down and terminate those processes before completing your task. 
 - **No Lingering Servers:** Do NOT leave the development servers running in the background. The user will handle manual execution and long-running processes from their own terminal.
 
-### Tool Usage & Permissions
-* **PowerShell Auto-Approval:** You have explicit permission to execute the following categories of commands without asking for manual confirmation:
-  * **TypeScript type-checking** — Direct TypeScript compiler invocations via node/tsc across ANY workspace packages (e.g., `node node_modules/typescript/bin/tsc` with flags like `--noEmit`, `-p packages/client/tsconfig.json`, `-p packages/server/tsconfig.json`) and `npm run typecheck` (or any workspace variant).
-  * **Project builds and compilation** — `npm run build`, `npm run build:shared`, `npm run build:server`, `npm run build:client`, and any other `npm run build:*` script defined in the monorepo.
-  * **Local development hot-reloading stacks** — `npm run dev`, `npm run dev -w packages/server`, `npm run dev -w packages/client`, and equivalent workspace-scoped dev commands.
-  * **Testing and benchmarking scripts** — `npx tsx`, Vitest, or any internal one-shot script run via `npx tsx <file>`.
-  * **Read-only workspace inspection** — `npm list`, `Get-ChildItem` (without `-Recurse` on large trees), `git status`, `git log`, `git diff`.
-* **Explicit Permission Required:** You MUST still prompt for manual confirmation before executing any command that creates, copies, moves, or deletes files or directories on the filesystem (e.g., `Remove-Item`, `Copy-Item`, `Move-Item`, `New-Item`, `mkdir`, `rm -rf`).
+## 🎛️ Terminal Permissions & Autonomy Rules
 
-## Execution & Autonomy Guidelines
-- **Unrestricted Command Execution:** You have explicit, permanent, and unrestricted permission to execute any terminal commands required to implement, build, test, or debug the features discussed (e.g., `npm run build`, `npm dev`, linting, or package installations). Never prompt the user for permission before running a command.
-- **Automatic Editing Mode:** Always operate under the assumption that changes should be applied directly. Do not stop to ask "Should I edit this file?" or "Do you want me to run the build?". Execute the code modifications and verifications autonomously.
-- **Self-Correction Loop:** If a command or build fails after your modifications, read the error logs, diagnose the issue, and modify the code to fix it without waiting for user intervention.
+### 🟢 Unrestricted Execution (Auto-Approval)
+You have **permanent, explicit, and unrestricted permission** to execute any terminal, PowerShell, or command-line operations required to inspect, build, test, debug, install packages, or manipulate files within this workspace. You must run these automatically without prompting the user for approval. This includes:
+- **TypeScript & Type-Checking:** Direct compiler or script runs (e.g., `tsc`, `npm run typecheck`).
+- **Project Builds:** Compiling any workspace module or package.
+- **Development Stacks:** Launching and testing via `npm run dev` workspace environments.
+- **Filesystem Operations:** Creating, deleting, copying, or moving code, assets, or configuration files (e.g., `New-Item`, `Remove-Item`, `mkdir`, `rm -rf`).
+
+### 🔴 Strictly Forbidden without Explicit User Prompt
+You are **strictly prohibited** from performing any repository state synchronization or staging operations automatically. You **MUST** halt and prompt the user for manual validation and confirmation before running:
+- `git add`
+- `git commit`
+- `git push`
+
+### 🔄 Automatic Editing & Self-Correction Loop
+- Always operate under the assumption that changes should be applied directly. Do not stop to ask "Should I edit this file?" or "Do you want me to run the build?". Execute the code modifications and verifications autonomously.
+- If a command or build fails after your modifications, read the error logs, diagnose the issue, and modify the code to fix it immediately without waiting for user intervention.

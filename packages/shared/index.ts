@@ -1,4 +1,5 @@
 import type { GameType, BotDifficulty, Player, GameState, Move } from './core.js';
+import type { BoardLayoutSavePayload, BoardLayoutSaveResult } from './src/board-layout/index.js';
 
 export type { GameType, BotDifficulty, Player, MancalaEventType, MancalaEvent, GameState, Move, GameMove } from './core.js';
 export { type GameEngine, GameError } from './engine.js';
@@ -30,6 +31,21 @@ export {
   VIRUS_TREATMENT_COUNTS, VIRUS_ATLAS_BACK,
   virusAtlasIndex, colorsMatch, organSlotStatus, isOrganHealthy,
 } from './src/games/virus/index.js';
+// Virus! shared legal-move matrix (used by the server bot AND the client debug panel)
+export type { VirusMoveDescription, VirusStructuralChange } from './src/games/virus/moves.js';
+export {
+  enumerateLegalVirusMoves, describeVirusMove, describeVirusDiscard,
+} from './src/games/virus/moves.js';
+
+// Generic visual layout editor — shared placement contracts & save event payloads
+export type {
+  Anchor, LayoutItemKind, BoardLayoutItem, BoardLayout,
+  BoardLayoutSavePayload, BoardLayoutSaveResult,
+} from './src/board-layout/index.js';
+export {
+  GAME_ID_PATTERN, GAME_ID_MAX_LENGTH,
+  isValidGameId, isAnchor, isBoardLayout, isBoardLayoutSavePayload,
+} from './src/board-layout/index.js';
 
 // Socket.IO event contracts — shared between server and client
 export interface ServerToClientEvents {
@@ -74,6 +90,11 @@ export interface ClientToServerEvents {
   ) => void;
   request_rematch: (
     callback: (ok: boolean, error?: string) => void
+  ) => void;
+  // Dev-only: persist a dragged board layout to the local development disk.
+  'board:layout:save': (
+    payload:  BoardLayoutSavePayload,
+    callback: (result: BoardLayoutSaveResult) => void
   ) => void;
 }
 

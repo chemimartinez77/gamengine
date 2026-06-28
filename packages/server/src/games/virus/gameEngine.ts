@@ -23,7 +23,7 @@ export const virusGameEngine: GameEngine = {
 
   createInitialState(players: Player[]): GameState {
     const virus = initVirusGame(players.map(p => p.id));
-    virus.players.forEach((vp, i) => { vp.name = players[i].name; });
+    virus.players.forEach((vp, i) => { vp.name = players[i].name; vp.isBot = players[i].isBot; });
     return {
       players,
       turn:   virus.turn,

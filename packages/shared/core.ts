@@ -5,6 +5,8 @@ export type BotDifficulty = 'MUY_FACIL' | 'FACIL' | 'NORMAL' | 'DIFICIL' | 'MUY_
 export interface Player {
   id: string;
   name: string;
+  /** True for AI-controlled players. Absent/false for humans. */
+  isBot?: boolean;
 }
 
 export type MancalaEventType = 'EXTRA_TURN' | 'CAPTURE' | 'SWEEP';

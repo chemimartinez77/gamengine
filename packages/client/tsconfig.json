@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
+    "resolveJsonModule": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "outDir": "./dist",
     "rootDir": "./src",

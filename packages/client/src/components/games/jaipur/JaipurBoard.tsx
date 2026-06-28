@@ -1,13 +1,133 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type {
   JaipurGameState, JaipurMove, JaipurPlayerState,
   JaipurCard as JaipurCardModel, GoodsType, BonusTier,
+  BoardLayout as SharedBoardLayout,
 } from '@gamengine/shared'
 import {
   ALL_GOODS, JAIPUR_MAX_HAND, JAIPUR_MIN_SALE, JAIPUR_SEALS_TO_WIN,
 } from '@gamengine/shared'
 import { JaipurCard as CardView } from './JaipurCard'
 import { JaipurToken } from './JaipurToken'
+import {
+  BOARD_IMAGE, BOARD_RATIO,
+  createBoardLayout, useBoardSize, type Anchor, type BoardLayout, type StructuralAnchors,
+} from './boardLayout'
+import { useEditorMode } from '../../../hooks/useEditorMode'
+import { useBoardLayoutEditor } from '../../../hooks/useBoardLayoutEditor'
+import { Zone, TokenStack, StructuralMarker, MagnifierLens, LayoutEditorToolbar } from '../../board'
+// Dev sidecar written by the server on save. Imported statically so Vite triggers
+// HMR when the server rewrites it, closing the drag → save → re-ingest loop.
+import localLayout from './layout.json'
+
+/** This game's stable slug, used as the layout payload `gameId`. */
+const GAME_ID = 'jaipur'
+
+/**
+ * Flatten the structured Jaipur layout into the generic shared `BoardLayout`
+ * (`scales` + `anchors`), reusing the same id scheme as `getAnchor`/`updateAnchor`
+ * so the persisted JSON round-trips. Anchor shapes are identical across packages.
+ */
+function toSharedLayout(L: BoardLayout): SharedBoardLayout {
+  const anchors: Record<string, Anchor | Anchor[]> = {
+    deck:   L.deck,
+    market: L.market,
+    camel:  L.camel,
+  }
+  for (const [good, a]  of Object.entries(L.goods))      anchors[`goods-${good}`]      = a
+  for (const [tier, a]  of Object.entries(L.bonus))      anchors[`bonus-${tier}`]      = a
+  for (const [key, a]   of Object.entries(L.structural)) anchors[`structural-${key}`] = a
+  return {
+    scales: {
+      cardWPct:         L.cardWPct,
+      tokenWPct:        L.tokenWPct,
+      tokenStackOffset: L.tokenStackOffset,
+    },
+    anchors,
+  }
+}
+
+/**
+ * Rebuild the structured Jaipur layout from the generic shared `BoardLayout`
+ * (inverse of {@link toSharedLayout}). Every field deep-merges over the hardcoded
+ * factory defaults, so a partial or stale `layout.json` (e.g. missing a newly
+ * added anchor) degrades gracefully instead of breaking the board.
+ */
+function fromSharedLayout(shared: SharedBoardLayout): BoardLayout {
+  const d = createBoardLayout()
+  const A = shared.anchors ?? {}
+  const S = shared.scales ?? {}
+  const num = (v: unknown, fallback: number): number => typeof v === 'number' ? v : fallback
+  const one = (key: string, fallback: Anchor): Anchor => {
+    const v = A[key]
+    return v && !Array.isArray(v) ? v : fallback
+  }
+  const market = Array.isArray(A['market']) && A['market'].length === 5
+    ? (A['market'] as Anchor[])
+    : d.market
+  return {
+    cardWPct:         num(S['cardWPct'],         d.cardWPct),
+    tokenWPct:        num(S['tokenWPct'],        d.tokenWPct),
+    tokenStackOffset: num(S['tokenStackOffset'], d.tokenStackOffset),
+    deck:   one('deck', d.deck),
+    market,
+    camel:  one('camel', d.camel),
+    goods: {
+      diamonds: one('goods-diamonds', d.goods.diamonds),
+      gold:     one('goods-gold',     d.goods.gold),
+      silver:   one('goods-silver',   d.goods.silver),
+      cloth:    one('goods-cloth',    d.goods.cloth),
+      spice:    one('goods-spice',    d.goods.spice),
+      leather:  one('goods-leather',  d.goods.leather),
+    },
+    bonus: {
+      bonus3: one('bonus-bonus3', d.bonus.bonus3),
+      bonus4: one('bonus-bonus4', d.bonus.bonus4),
+      bonus5: one('bonus-bonus5', d.bonus.bonus5),
+    },
+    structural: {
+      deckDrawSlot:     one('structural-deckDrawSlot',     d.structural.deckDrawSlot),
+      deckDiscardSlot:  one('structural-deckDiscardSlot',  d.structural.deckDiscardSlot),
+      botCamelPen:      one('structural-botCamelPen',      d.structural.botCamelPen),
+      playerCamelPen:   one('structural-playerCamelPen',   d.structural.playerCamelPen),
+      botScoreSeals:    one('structural-botScoreSeals',    d.structural.botScoreSeals),
+      playerScoreSeals: one('structural-playerScoreSeals', d.structural.playerScoreSeals),
+    },
+  }
+}
+
+/** Build the file-backed baseline layout (server sidecar over factory defaults). */
+function hydrateFromFile(): BoardLayout {
+  return fromSharedLayout(localLayout as SharedBoardLayout)
+}
+
+// ── localStorage persistence key + lens constants ─────────────────────────────
+const LS_KEY    = 'jaipur-board-layout'
+const LENS_W    = 260
+const LENS_H    = 170
+const LENS_ZOOM = 2.5
+
+function loadLayout(): BoardLayout {
+  // Baseline = the server-persisted sidecar (layout.json) over factory defaults.
+  // localStorage, when present, is an in-progress editing scratchpad layered on top.
+  const base = hydrateFromFile()
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return base
+    const p = JSON.parse(raw) as Partial<BoardLayout>
+    // Deep-merge: stored values win; any missing field (e.g. newly added
+    // structural anchors in a fresh session) falls back to the file baseline.
+    return {
+      ...base,
+      ...p,
+      market:     Array.isArray(p.market) && p.market.length === 5 ? p.market : base.market,
+      goods:      p.goods  ?? base.goods,
+      bonus:      p.bonus  ?? base.bonus,
+      structural: { ...base.structural, ...(p.structural ?? {}) } as StructuralAnchors,
+    }
+  } catch {}
+  return base
+}
 
 interface JaipurBoardProps {
   jaipurState:  JaipurGameState
@@ -43,6 +163,43 @@ export function JaipurBoard({
 }: JaipurBoardProps) {
   const [selectedMarket, setSelectedMarket] = useState<Set<string>>(new Set())
   const [selectedMine,   setSelectedMine]   = useState<Set<string>>(new Set())
+
+  // Measure the board stage so percentage zones scale into pixel piece sizes.
+  const { ref: stageRef, width: stageW } = useBoardSize<HTMLDivElement>()
+
+  // ── Visual Layout Editor: all generic drag/nudge/keyboard mechanics live in
+  // the reusable hook; Jaipur only supplies thin adapters over its structured layout.
+  const {
+    isEditorMode, layout, setLayout, layoutRef,
+    selectedEl, isMagnifier, lensPos, setLensPos, editorFor,
+  } = useBoardLayoutEditor<BoardLayout>({
+    stageRef, lsKey: LS_KEY, load: loadLayout, factory: createBoardLayout,
+    getAnchor, setAnchor: updateAnchor,
+    scaleSelected: scaleJaipurElement,
+    adjustStackOffset: (L, dir) => ({ ...L, tokenStackOffset: Math.max(0, L.tokenStackOffset + dir) }),
+    onExport: exportLayout,
+  })
+
+  const cardW  = Math.max(1, Math.round((layout.cardWPct  / 100) * stageW))
+  const tokenW = Math.max(1, Math.round((layout.tokenWPct / 100) * stageW))
+
+  // Server-persistence controller: Ctrl/⌘+S + floating "Guardar Layout" button.
+  const editor = useEditorMode({
+    gameId: GAME_ID,
+    enabled: isEditorMode,
+    buildLayout: () => toSharedLayout(layoutRef.current),
+  })
+
+  // Re-ingest the sidecar when the server rewrites layout.json: Vite HMR swaps the
+  // imported module, changing `localLayout`'s reference, and we re-hydrate from it.
+  // The first run (initial mount) is skipped so it never clobbers the localStorage
+  // scratchpad that loadLayout() already layered on top.
+  const skipFirstIngest = useRef(true)
+  useEffect(() => {
+    if (skipFirstIngest.current) { skipFirstIngest.current = false; return }
+    setLayout(hydrateFromFile())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localLayout])
 
   // Clear local selection whenever the turn (or round) changes.
   useEffect(() => {
@@ -213,67 +370,80 @@ export function JaipurBoard({
     )
   }
 
-  // ── Market + piles (middle) ───────────────────────────────────────────────
-  function renderMarket() {
+  // ── Board stage: shared central zone anchored on the printed board image ──
+  // Pieces are centred on their anchor (% of the stage), see ./boardLayout.ts.
+  function renderBoardStage() {
     return (
-      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        {/* Deck + market row */}
-        <div style={{ flex: 1, minWidth: 320 }}>
-          <div style={st.sectionLabel}>Mercado</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Deck back */}
-            <div style={{ position: 'relative' }}>
-              <CardView card={{ id: 'deck', type: 'camel' }} isFaceUp={false} width={64} />
-              <span style={st.deckCount}>{jaipurState.deck.length}</span>
-            </div>
-            {/* 5 market cards */}
-            {market.map(card => (
-              <CardView
-                key={card.id}
-                card={card}
-                width={64}
-                isSelected={selectedMarket.has(card.id)}
-                onClick={isActive ? () => toggle(selectedMarket, setSelectedMarket, card.id) : undefined}
-              />
-            ))}
+      <div
+        ref={stageRef}
+        style={st.stage}
+        title="Mercado de Jaipur"
+        onMouseMove={(e) => { if (isMagnifier) setLensPos({ cx: e.clientX, cy: e.clientY }) }}
+      >
+        {/* Deck (face-down draw pile) */}
+        <Zone anchor={layout.deck} editor={editorFor('deck')}>
+          <div style={{ position: 'relative' }}>
+            <CardView card={{ id: 'deck', type: 'camel' }} isFaceUp={false} width={cardW} />
+            <span style={st.deckCount}>{jaipurState.deck.length}</span>
           </div>
-        </div>
+        </Zone>
 
-        {/* Token piles */}
-        <div style={{ minWidth: 260 }}>
-          <div style={st.sectionLabel}>Fichas de producto</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-            {ALL_GOODS.map(good => {
-              const pile = jaipurState.tokens.goods[good]
-              const top  = pile[0]
-              return (
-                <div key={good} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  {pile.length > 0
-                    ? <JaipurToken type={good} value={top} count={pile.length} size={42} />
-                    : <JaipurToken type={good} value={0} size={42} dimmed />}
-                  <span style={{ fontSize: 9, color: '#8aa', textAlign: 'center' }}>{GOOD_LABEL[good]}</span>
-                </div>
-              )
-            })}
-          </div>
+        {/* 5 market cards */}
+        {market.map((card, i) => (
+          <Zone key={card.id} anchor={layout.market[i]} editor={editorFor(`market-${i}`)}>
+            <CardView
+              card={card}
+              width={cardW}
+              isSelected={selectedMarket.has(card.id)}
+              onClick={isActive && !isEditorMode ? () => toggle(selectedMarket, setSelectedMarket, card.id) : undefined}
+            />
+          </Zone>
+        ))}
 
-          <div style={st.sectionLabel}>Bonificación</div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {BONUS_TIERS.map(tier => {
-              const pile = jaipurState.tokens.bonus[tier]
-              return (
-                <div key={tier} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <JaipurToken type={tier} count={pile.length} size={42} dimmed={pile.length === 0} />
-                  <span style={{ fontSize: 9, color: '#8aa' }}>{BONUS_LABEL[tier]}</span>
-                </div>
-              )
-            })}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <JaipurToken type="camel" size={42} dimmed={!jaipurState.tokens.camelTokenAvailable} />
-              <span style={{ fontSize: 9, color: '#8aa' }}>Camello</span>
-            </div>
-          </div>
-        </div>
+        {/* Goods token piles — rendered as physical 3D stacks */}
+        {ALL_GOODS.map(good => {
+          const pile = jaipurState.tokens.goods[good]
+          return (
+            <Zone key={good} anchor={layout.goods[good]} label={GOOD_LABEL[good]} editor={editorFor(`goods-${good}`)}>
+              {pile.length > 0
+                ? <TokenStack
+                    items={pile.map((v, i) => <JaipurToken key={i} type={good} value={v} size={tokenW} />)}
+                    size={tokenW} offset={layout.tokenStackOffset} />
+                : <JaipurToken type={good} value={0} size={tokenW} dimmed />}
+            </Zone>
+          )
+        })}
+
+        {/* Bonus token stacks */}
+        {BONUS_TIERS.map(tier => {
+          const pile = jaipurState.tokens.bonus[tier]
+          return (
+            <Zone key={tier} anchor={layout.bonus[tier]} label={BONUS_LABEL[tier]} editor={editorFor(`bonus-${tier}`)}>
+              {pile.length > 0
+                ? <TokenStack
+                    items={pile.map((_, i) => <JaipurToken key={i} type={tier} size={tokenW} />)}
+                    size={tokenW} offset={layout.tokenStackOffset} />
+                : <JaipurToken type={tier} size={tokenW} dimmed />}
+            </Zone>
+          )
+        })}
+
+        {/* Camel (5-rupee) token */}
+        <Zone anchor={layout.camel} label="Camello" editor={editorFor('camel')}>
+          <JaipurToken type="camel" size={tokenW} dimmed={!jaipurState.tokens.camelTokenAvailable} />
+        </Zone>
+
+        {/* Structural zones — editor-only ghost markers; invisible in normal play */}
+        {isEditorMode && (
+          <>
+            <Zone anchor={layout.structural.deckDrawSlot}    label="Mazo robar"   editor={editorFor('structural-deckDrawSlot')}><StructuralMarker /></Zone>
+            <Zone anchor={layout.structural.deckDiscardSlot} label="Mazo descartes" editor={editorFor('structural-deckDiscardSlot')}><StructuralMarker /></Zone>
+            <Zone anchor={layout.structural.botCamelPen}     label="Manada Bot"   editor={editorFor('structural-botCamelPen')}><StructuralMarker /></Zone>
+            <Zone anchor={layout.structural.playerCamelPen}  label="Mi manada"    editor={editorFor('structural-playerCamelPen')}><StructuralMarker /></Zone>
+            <Zone anchor={layout.structural.botScoreSeals}   label="Sellos Bot"   editor={editorFor('structural-botScoreSeals')}><StructuralMarker /></Zone>
+            <Zone anchor={layout.structural.playerScoreSeals} label="Mis sellos"  editor={editorFor('structural-playerScoreSeals')}><StructuralMarker /></Zone>
+          </>
+        )}
       </div>
     )
   }
@@ -389,10 +559,50 @@ export function JaipurBoard({
     )
   })() : null
 
-  // ── Layout ────────────────────────────────────────────────────────────────
+  // ── Editor HUD (only while editing) ───────────────────────────────────────
+  const editorHud = isEditorMode ? (() => {
+    const a = selectedEl ? getAnchor(layout, selectedEl) : undefined
+    return (
+      <div style={st.editorHud}>
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>🛠️ Editor de tablero</div>
+        <div>{selectedEl ? `Pieza: ${selectedEl}` : 'Arrastra o pulsa una pieza'}</div>
+        {a && <div style={{ color: '#9fd' }}>top {round1(a.topPct)}% · left {round1(a.leftPct)}%</div>}
+        <div style={{ color: '#fc9', marginTop: 2 }}>
+          carta {round1(layout.cardWPct)}% · ficha {round1(layout.tokenWPct)}%
+        </div>
+        <div style={{ marginTop: 4, fontSize: 10, color: '#adf' }}>💾 Auto-guardado en localStorage</div>
+        <div style={{ marginTop: 8, fontSize: 11, opacity: 0.85, lineHeight: 1.6 }}>
+          Arrastrar = mover · Flechas = 1px (Shift = 10px)<br />
+          - / + = reducir / ampliar tamaño<br />
+          u / d = solape de pilas ({layout.tokenStackOffset}px)<br />
+          Ctrl/⌘+S = guardar en servidor · S = exportar JSON (consola)<br />
+          R = reiniciar<br />
+          Esc = deseleccionar · Z = lupa<br />
+          ` (acento grave) = salir del editor
+        </div>
+      </div>
+    )
+  })() : null
+
   return (
     <div style={st.page}>
       {gameOverOverlay}
+      {editorHud}
+      {isMagnifier && (
+        <MagnifierLens
+          image={BOARD_IMAGE} ratio={BOARD_RATIO}
+          stageRef={stageRef} stageW={stageW} lensPos={lensPos}
+          width={LENS_W} height={LENS_H} zoom={LENS_ZOOM}
+        />
+      )}
+      {editor.isEditing && (
+        <LayoutEditorToolbar
+          saveState={editor.saveState}
+          errorMessage={editor.errorMessage}
+          lastWrittenPath={editor.lastWrittenPath}
+          onSave={editor.save}
+        />
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
@@ -410,10 +620,83 @@ export function JaipurBoard({
       </div>
 
       {renderOpponent()}
-      <div style={{ ...st.panel, marginTop: 12, marginBottom: 12 }}>{renderMarket()}</div>
+      <div style={st.stageWrap}>{renderBoardStage()}</div>
       {renderMyArea()}
     </div>
   )
+}
+
+// ── Editor math helpers ───────────────────────────────────────────────────────
+const clamp  = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+const round1 = (v: number) => Math.round(v * 10) / 10
+const round2 = (v: number) => Math.round(v * 100) / 100
+
+// ── Jaipur editor adapters (passed to the generic useBoardLayoutEditor hook) ──
+
+/** Grow/shrink the selected element: deck/market scale the card knob, else token. */
+function scaleJaipurElement(L: BoardLayout, id: string, dir: 1 | -1): BoardLayout {
+  const delta = dir * 0.2
+  const isCard = id === 'deck' || id.startsWith('market-')
+  return isCard
+    ? { ...L, cardWPct:  round2(clamp(L.cardWPct  + delta, 1, 30)) }
+    : { ...L, tokenWPct: round2(clamp(L.tokenWPct + delta, 1, 30)) }
+}
+
+/** Legacy console export in copy-paste-ready boardLayout.ts constant form (plain S). */
+function exportLayout(L: BoardLayout): void {
+  const r = (a: Anchor) => ({ topPct: round1(a.topPct), leftPct: round1(a.leftPct) })
+  const out = {
+    CARD_W_PCT: L.cardWPct,
+    TOKEN_W_PCT: L.tokenWPct,
+    TOKEN_STACK_OFFSET: L.tokenStackOffset,
+    DECK_ANCHOR: r(L.deck),
+    MARKET_ANCHORS: L.market.map(r),
+    GOODS_ANCHORS: Object.fromEntries(Object.entries(L.goods).map(([k, v]) => [k, r(v)])),
+    BONUS_ANCHORS: Object.fromEntries(Object.entries(L.bonus).map(([k, v]) => [k, r(v)])),
+    CAMEL_ANCHOR: r(L.camel),
+    STRUCTURAL_ANCHORS: Object.fromEntries(
+      Object.entries(L.structural).map(([k, v]) => [k, r(v as Anchor)]),
+    ),
+  }
+  try { localStorage.setItem(LS_KEY, JSON.stringify(L)) } catch {}
+  // eslint-disable-next-line no-console
+  console.log('[Jaipur boardLayout]\n' + JSON.stringify(out, null, 2))
+}
+
+const STRUCTURAL_KEYS: (keyof StructuralAnchors)[] = [
+  'deckDrawSlot', 'deckDiscardSlot',
+  'botCamelPen', 'playerCamelPen',
+  'botScoreSeals', 'playerScoreSeals',
+]
+
+function getAnchor(L: BoardLayout, id: string): Anchor | undefined {
+  if (id === 'deck')  return L.deck
+  if (id === 'camel') return L.camel
+  if (id.startsWith('market-'))    return L.market[Number(id.slice(7))]
+  if (id.startsWith('goods-'))     return L.goods[id.slice(6) as GoodsType]
+  if (id.startsWith('bonus-'))     return L.bonus[id.slice(6) as BonusTier]
+  if (id.startsWith('structural-')) {
+    const key = id.slice(11) as keyof StructuralAnchors
+    return STRUCTURAL_KEYS.includes(key) ? L.structural[key] : undefined
+  }
+  return undefined
+}
+
+function updateAnchor(L: BoardLayout, id: string, a: Anchor): BoardLayout {
+  if (id === 'deck')  return { ...L, deck: a }
+  if (id === 'camel') return { ...L, camel: a }
+  if (id.startsWith('market-')) {
+    const market = L.market.slice()
+    market[Number(id.slice(7))] = a
+    return { ...L, market }
+  }
+  if (id.startsWith('goods-')) return { ...L, goods: { ...L.goods, [id.slice(6) as GoodsType]: a } }
+  if (id.startsWith('bonus-')) return { ...L, bonus: { ...L.bonus, [id.slice(6) as BonusTier]: a } }
+  if (id.startsWith('structural-')) {
+    const key = id.slice(11) as keyof StructuralAnchors
+    if (STRUCTURAL_KEYS.includes(key)) return { ...L, structural: { ...L.structural, [key]: a } }
+  }
+  return L
 }
 
 // ── Action button ────────────────────────────────────────────────────────────
@@ -446,8 +729,19 @@ const st: Record<string, React.CSSProperties> = {
     padding: '20px 16px', boxSizing: 'border-box',
     fontFamily: 'system-ui, sans-serif', color: '#fff',
     backgroundColor: '#1a1208',
-    backgroundImage: 'linear-gradient(rgba(20,12,4,0.86), rgba(20,12,4,0.92)), url(/jaipur/board/mesa-base.png)',
-    backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
+  },
+  // Wrapper centres the aspect-locked board stage between the player panels.
+  stageWrap: { margin: '12px auto', width: '100%' },
+  // The board image itself; children are absolutely positioned over its zones.
+  stage: {
+    position: 'relative', width: '100%', aspectRatio: `${BOARD_RATIO}`,
+    backgroundImage: `url(${BOARD_IMAGE})`,
+    backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+    borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.55)',
+  },
+  zoneLabel: {
+    fontSize: 9, fontWeight: 700, color: '#fff',
+    textShadow: '0 1px 3px rgba(0,0,0,0.95)', whiteSpace: 'nowrap', pointerEvents: 'none',
   },
   panel: {
     borderRadius: 12, padding: '12px 16px',
@@ -471,6 +765,13 @@ const st: Record<string, React.CSSProperties> = {
   },
   btnPri:   { padding: '9px 18px', background: '#c8821e', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 },
   btnLeave: { padding: '6px 14px', background: '#fff', color: '#b3331f', border: '1px solid #b3331f', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' },
+  editorHud: {
+    position: 'fixed', top: 12, right: 12, zIndex: 400,
+    background: 'rgba(10,16,24,0.92)', border: '1px solid rgba(59,130,246,0.6)',
+    borderRadius: 10, padding: '12px 14px', maxWidth: 280,
+    color: '#fff', fontSize: 13, lineHeight: 1.4,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.55)', pointerEvents: 'none',
+  },
   overlay:  { position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(8,5,2,0.93)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   overlayPanel: {
     background: 'linear-gradient(160deg, #2a1d0c 0%, #1a1208 100%)',

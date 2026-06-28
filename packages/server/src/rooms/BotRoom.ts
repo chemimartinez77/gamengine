@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { GameState, BotDifficulty, GameType, Player } from '@gamengine/shared';
 import { Room } from './Room.js';
 import { getBotMove } from '../bot/index.js';
+import { pickBotName } from '../bot/names.js';
 
 // Bot "socket" IDs are virtual — they exist in the playerMap but never connect.
 // Each bot gets a unique suffix so multi-bot rooms have distinct socket IDs.
@@ -21,6 +22,7 @@ export class BotRoom extends Room {
   // Track each bot added to this room.
   private readonly _botIds:     string[] = [];
   private readonly _botSockets: string[] = [];
+  private readonly _botNames:   string[] = [];
   private readonly _botIndexSet = new Set<number>();
 
   constructor(roomId: string, roomName: string, gameType: GameType, difficulty: BotDifficulty) {
@@ -37,10 +39,9 @@ export class BotRoom extends Room {
 
   /** All bots as Player objects (for emitting player_joined events). */
   getBotPlayers(): Player[] {
-    const multi = this._botIds.length > 1;
     return this._botIds.map((id, i) => ({
       id,
-      name: multi ? `💻 Bot ${i + 1}` : '💻 Bot',
+      name: this._botNames[i] ?? 'Invitado',
     }));
   }
 
@@ -57,11 +58,17 @@ export class BotRoom extends Room {
     const botId    = randomUUID();
     const socketId = `${BOT_SOCKET_PREFIX}${botIndex}`;
 
+    // Give each bot a real, distinct Spanish name (avoid clashing with anyone
+    // already in the room — human nickname or earlier bots).
+    const taken = new Set(this.getPlayers().map(p => p.name));
+    const name  = pickBotName(taken);
+
     this._botIds.push(botId);
     this._botSockets.push(socketId);
+    this._botNames.push(name);
     this._botIndexSet.add(botIndex);
 
-    super.addPlayer(socketId, { id: botId, name: '💻 Bot' });
+    super.addPlayer(socketId, { id: botId, name, isBot: true });
   }
 
   // Bot rooms are full once all bots are added (always private / single-human).

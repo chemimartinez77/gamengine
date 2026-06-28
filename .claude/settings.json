@@ -10,7 +10,23 @@
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\proyectos\\\\gamengine\\\\packages\\\\client\\\\src\\\\components\\\\games\\\\splendor\")",
       "PowerShell(node node_modules/typescript/bin/tsc -p packages/shared/tsconfig.json --noEmit 2>&1)",
       "PowerShell(npm run build 2>&1)",
-      "Bash(node -e \"const p=require\\('./packages/client/package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
+      "Bash(node -e \"const p=require\\('./packages/client/package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(node packages/client/node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit)",
+      "Bash(node node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit)",
+      "PowerShell(npx tsc -p packages/client/tsconfig.json --noEmit 2>&1)",
+      "Bash(cd /c/proyectos/gamengine && rm -f _atlas_overview.png _atlas_grid.png _atlas_grid7.png _atlas_specials.png _atlas_specials2.png _atlas_specials3.png _atlas_specials4.png _atlas_check.png && echo \"cleaned\")",
+      "Bash(npx tsx *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(rm -rf packages/client/src/components/games/smoketest ./_smoke-layout.mjs /tmp/smoke-layout.mjs *)",
+      "Bash(node -e \"const s=require\\('./package.json'\\).scripts; console.log\\(JSON.stringify\\(s,null,2\\)\\)\")",
+      "Bash(node packages/server/dist/index.js)",
+      "Bash(node -e \"const n=require\\('net'\\);const s=n.connect\\(3000,'127.0.0.1'\\);s.on\\('connect',\\(\\)=>{console.log\\('STILL UP'\\);s.end\\(\\)}\\);s.on\\('error',\\(\\)=>console.log\\('port 3000 closed - clean'\\)\\)\")",
+      "Bash(rm -f ./_int-test2.mjs)",
+      "Bash(rm -rf packages/client/dist)"
+    ],
+    "additionalDirectories": [
+      "c:\\c\\proyectos\\gamengine",
+      "\\tmp"
     ]
   }
 }
