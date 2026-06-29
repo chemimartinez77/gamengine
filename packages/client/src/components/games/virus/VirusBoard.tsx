@@ -8,6 +8,36 @@ import {
 } from '@gamengine/shared'
 import { VirusDebugPanel } from './VirusDebugPanel'
 import { isVirusDebugEnabled, logVirusTurn } from './virusDebug'
+import { useBoardLayoutEditor } from '../../../hooks/useBoardLayoutEditor'
+import { useEditorMode } from '../../../hooks/useEditorMode'
+import { Zone, TokenStack, LayoutEditorToolbar } from '../../board'
+import {
+  createVirusLayout, fromVirusShared, getVirusAnchor, setVirusAnchor,
+  scaleVirusElement, exportVirusLayout, virusCardScale,
+  VIRUS_LS_KEY, type VirusBoardLayout,
+} from './boardLayout'
+// Dev sidecar (server-written); imported statically so Vite HMR re-ingests on save.
+import localVirusLayout from './layout.json'
+
+/** Build the file-backed baseline layout (sidecar merged over factory defaults). */
+function hydrateVirusFromFile(): VirusBoardLayout {
+  return fromVirusShared(localVirusLayout as VirusBoardLayout)
+}
+
+/** Initial layout: sidecar baseline with the localStorage scratchpad layered on top. */
+function loadVirusLayout(): VirusBoardLayout {
+  const base = hydrateVirusFromFile()
+  try {
+    const raw = localStorage.getItem(VIRUS_LS_KEY)
+    if (!raw) return base
+    const p = JSON.parse(raw) as Partial<VirusBoardLayout>
+    return {
+      scales:  { ...base.scales,  ...(p.scales  ?? {}) },
+      anchors: { ...base.anchors, ...(p.anchors ?? {}) },
+    }
+  } catch {}
+  return base
+}
 
 // ─── CSS keyframe injection (once at module load) ─────────────────────────────
 ;(function injectStyles() {
@@ -648,6 +678,27 @@ export function VirusBoard({
 
   const prevStateRef = useRef<VirusGameState | null>(null)
 
+  // ── Generic visual layout editor (positions for deck / discard / 4 seats) ───
+  const stageRef = useRef<HTMLDivElement>(null)
+  const {
+    isEditorMode, layout, setLayout, layoutRef, editorFor,
+  } = useBoardLayoutEditor<VirusBoardLayout>({
+    stageRef, lsKey: VIRUS_LS_KEY, load: loadVirusLayout, factory: createVirusLayout,
+    getAnchor: getVirusAnchor, setAnchor: setVirusAnchor,
+    scaleSelected: scaleVirusElement, onExport: exportVirusLayout,
+  })
+  // Server-persistence controller: Ctrl/⌘+S + floating "Guardar Layout" button.
+  const layoutEditor = useEditorMode({
+    gameId: 'virus', enabled: isEditorMode, buildLayout: () => layoutRef.current,
+  })
+  // Re-ingest the sidecar on Vite HMR when the server rewrites layout.json.
+  const skipFirstIngest = useRef(true)
+  useEffect(() => {
+    if (skipFirstIngest.current) { skipFirstIngest.current = false; return }
+    setLayout(hydrateVirusFromFile())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localVirusLayout])
+
   const me        = virusState.players.find(p => p.id === myPlayerId)
   const opponents = virusState.players.filter(p => p.id !== myPlayerId)
   const activeId  = virusState.players[virusState.turn]?.id
@@ -847,6 +898,7 @@ export function VirusBoard({
   const mustSkip    = me?.mustSkipPlay ?? false
   const canInteract = isMyTurn && !gameOver
   const topCard     = virusState.discardPile[virusState.discardPile.length - 1]
+  const deckSize    = Math.round(56 * virusCardScale(layout))
 
   const transplanteHL = transplanteStep
     ? `${transplanteStep.player1Id}:${transplanteStep.color1}`
@@ -894,6 +946,16 @@ export function VirusBoard({
         <VirusDebugPanel state={virusState} playerId={myPlayerId} />
       )}
 
+      {/* Layout editor save toolbar (only with ?edit=true) */}
+      {layoutEditor.isEditing && (
+        <LayoutEditorToolbar
+          saveState={layoutEditor.saveState}
+          errorMessage={layoutEditor.errorMessage}
+          lastWrittenPath={layoutEditor.lastWrittenPath}
+          onSave={layoutEditor.save}
+        />
+      )}
+
       {/* Header */}
       <div style={st.header}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
@@ -922,80 +984,94 @@ export function VirusBoard({
       {/* Activity feed — bot action history */}
       <ActivityFeed entries={feedEntries} />
 
-      {/* Opponents */}
-      {opponents.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={st.sectionLabel}>Laboratorios rivales</div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {opponents.map(opp => (
-              <OpponentPanel
-                key={opp.id}
-                player={opp}
-                eligible={eligible}
-                transplanteHighlight={transplanteHL}
-                onSlotClick={handleSlotClick}
-                onPlayerClick={handlePlayerClick}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Board stage — deck, discard and the 4 player seats positioned by editable
+          anchors (boardLayout.ts). Calibrate live with ?edit=true. */}
+      <div ref={stageRef} style={st.boardStage}>
+        {/* Opponents → player_1..player_3 */}
+        {opponents.map((opp, i) => (
+          <Zone
+            key={opp.id}
+            anchor={getVirusAnchor(layout, `player_${i + 1}`) ?? { topPct: 15, leftPct: 18 }}
+            editor={editorFor(`player_${i + 1}`)}
+          >
+            <OpponentPanel
+              player={opp}
+              eligible={eligible}
+              transplanteHighlight={transplanteHL}
+              onSlotClick={handleSlotClick}
+              onPlayerClick={handlePlayerClick}
+            />
+          </Zone>
+        ))}
 
-      {/* Central table zone */}
-      <div style={st.centralZone}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <span style={st.miniLabel}>Mazo</span>
-          <div style={{ position: 'relative' }}>
-            <CardBack size={56} />
-            <span style={st.deckBadge}>{virusState.deck.length}</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <span style={st.miniLabel}>Descartes</span>
+        {/* Draw deck (face-down stack) */}
+        <Zone
+          anchor={getVirusAnchor(layout, 'deck') ?? { topPct: 46, leftPct: 43 }}
+          label={`Mazo (${virusState.deck.length})`}
+          editor={editorFor('deck')}
+        >
+          <TokenStack
+            items={Array.from({ length: 3 }, (_, i) => <CardBack key={i} size={deckSize} />)}
+            size={deckSize}
+            offset={3}
+          />
+        </Zone>
+
+        {/* Discard pile (top card) */}
+        <Zone
+          anchor={getVirusAnchor(layout, 'discard') ?? { topPct: 46, leftPct: 57 }}
+          label="Descartes"
+          editor={editorFor('discard')}
+        >
           {topCard
-            ? <VirusCardView card={topCard} size={56} />
-            : <div style={{ width: 56, height: 78, borderRadius: 8, border: '1.5px dashed rgba(255,255,255,0.15)' }} />}
-        </div>
-      </div>
+            ? <VirusCardView card={topCard} size={deckSize} />
+            : <div style={{ width: deckSize, height: Math.round(deckSize * 1.4), borderRadius: 8, border: '1.5px dashed rgba(255,255,255,0.15)' }} />}
+        </Zone>
 
-      {/* My body */}
-      {me && (
-        <div style={st.panel}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={st.sectionLabel}>Mi cuerpo — {me.name}</span>
-            <span style={{
-              fontSize: 13, fontWeight: 800,
-              color: (() => {
-                const n = ALL_BODY_COLORS.map(c => me.cuerpo[c])
-                  .filter((s): s is OrganSlot => s !== undefined && isOrganHealthy(s)).length
-                return n >= VIRUS_WIN_ORGANS ? '#00e676' : '#e8c074'
-              })(),
-            }}>
-              {ALL_BODY_COLORS.map(c => me.cuerpo[c])
-                .filter((s): s is OrganSlot => s !== undefined && isOrganHealthy(s)).length
-              }/{VIRUS_WIN_ORGANS} órganos sanos
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {ALL_BODY_COLORS.map(color => (
-              <div key={color} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 9, color: COLOR_HEX[color], fontWeight: 700 }}>
-                  {COLOR_LABEL[color]}
+        {/* Local player → player_0 */}
+        {me && (
+          <Zone
+            anchor={getVirusAnchor(layout, 'player_0') ?? { topPct: 80, leftPct: 50 }}
+            editor={editorFor('player_0')}
+          >
+            <div style={{ ...st.panel, width: 420, maxWidth: '90vw', marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={st.sectionLabel}>Mi cuerpo — {me.name}</span>
+                <span style={{
+                  fontSize: 13, fontWeight: 800,
+                  color: (() => {
+                    const n = ALL_BODY_COLORS.map(c => me.cuerpo[c])
+                      .filter((s): s is OrganSlot => s !== undefined && isOrganHealthy(s)).length
+                    return n >= VIRUS_WIN_ORGANS ? '#00e676' : '#e8c074'
+                  })(),
+                }}>
+                  {ALL_BODY_COLORS.map(c => me.cuerpo[c])
+                    .filter((s): s is OrganSlot => s !== undefined && isOrganHealthy(s)).length
+                  }/{VIRUS_WIN_ORGANS} órganos sanos
                 </span>
-                <OrganSlotView
-                  playerId={me.id}
-                  color={color}
-                  slot={me.cuerpo[color]}
-                  eligible={eligible}
-                  goldenRing={transplanteHL === `${me.id}:${color}`}
-                  isShaking={shakingSlots.has(color)}
-                  onSlotClick={handleSlotClick}
-                />
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {ALL_BODY_COLORS.map(color => (
+                  <div key={color} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: COLOR_HEX[color], fontWeight: 700 }}>
+                      {COLOR_LABEL[color]}
+                    </span>
+                    <OrganSlotView
+                      playerId={me.id}
+                      color={color}
+                      slot={me.cuerpo[color]}
+                      eligible={eligible}
+                      goldenRing={transplanteHL === `${me.id}:${color}`}
+                      isShaking={shakingSlots.has(color)}
+                      onSlotClick={handleSlotClick}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Zone>
+        )}
+      </div>
 
       {/* My hand */}
       {me && (
@@ -1106,6 +1182,12 @@ const st: Record<string, React.CSSProperties> = {
     padding: '12px 24px', borderRadius: 10,
     background: 'rgba(0,0,0,0.3)',
     border: '1px solid rgba(255,255,255,0.08)',
+  },
+  // Absolute-positioned table: children are placed via % anchors (boardLayout.ts).
+  boardStage: {
+    position: 'relative', width: '100%', minHeight: 600, marginBottom: 14,
+    borderRadius: 12, background: 'rgba(0,0,0,0.22)',
+    border: '1px solid rgba(255,255,255,0.06)',
   },
   hint: {
     fontSize: 12, color: '#adf', background: 'rgba(99,179,255,0.08)',

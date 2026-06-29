@@ -1,0 +1,31 @@
+{
+  "scales": {
+    "cardScale": 1
+  },
+  "anchors": {
+    "player_1": {
+      "leftPct": 15.18,
+      "topPct": 12.1
+    },
+    "player_2": {
+      "leftPct": 36.87,
+      "topPct": 11.97
+    },
+    "player_3": {
+      "leftPct": 55.5,
+      "topPct": 11.7
+    },
+    "deck": {
+      "leftPct": 59.46,
+      "topPct": 88.3
+    },
+    "discard": {
+      "leftPct": 66.49,
+      "topPct": 86.7
+    },
+    "player_0": {
+      "leftPct": 23.78,
+      "topPct": 85.51
+    }
+  }
+}
