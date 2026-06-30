@@ -39,10 +39,16 @@ export {
 
 export type {
   StoneAgeResourceType, StoneAgePlayerColor, StoneAgeGamePhase,
+  StoneAgeBoardLocation, StoneAgeBoardOccupancy,
+  StoneAgePlaceFiguresPayload, StoneAgeMovePayload,
   StoneAgeMeepleState, StoneAgeToolState,
   StoneAgeFixedCost, StoneAgeVariableCost,
   StoneAgeHutTile, StoneAgeCivilizationCard,
   StoneAgePlayerState, StoneAgeGameState,
+} from './src/games/stoneage/index.js';
+export {
+  STONEAGE_LIMITED_LOCATIONS, STONEAGE_RESOURCE_LOCATIONS,
+  STONEAGE_RESOURCE_LOCATION_CAPACITY,
 } from './src/games/stoneage/index.js';
 
 // Generic visual layout editor — shared placement contracts & save event payloads

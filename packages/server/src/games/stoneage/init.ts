@@ -106,6 +106,10 @@ export function initStoneAgeGame(players: Player[]): StoneAgeGameState {
   const activeCards = deck.slice(0, ACTIVE_CARD_SLOTS) as (StoneAgeCivilizationCard | null)[];
   const remaining   = deck.slice(ACTIVE_CARD_SLOTS);
 
+  // Turn order: 0, 1, 2, … (seat index = clockwise order for round 1).
+  // The first player (index 0) holds the First Player token initially.
+  const turnOrder = playerStates.map((_, i) => i);
+
   return {
     players:               playerStates,
     turn:                  0,
@@ -114,6 +118,9 @@ export function initStoneAgeGame(players: Player[]): StoneAgeGameState {
     currentTurn:           1,
     currentPhase:          'PLACEMENT',
     activePlayerIndex:     0,
+    turnOrder,
+    placementTurnIndex:    0,
+    boardOccupancy:        {},
     hutPiles,
     civilizationCardsDeck: remaining,
     activeCards,

@@ -9,6 +9,7 @@
     "build:shared": "tsc -p packages/shared/tsconfig.json",
     "build:server": "tsc -p packages/server/tsconfig.json",
     "build":        "npm run build:shared && npm run build:server",
+    "typecheck":    "npm run typecheck -w packages/client",
     "test":         "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

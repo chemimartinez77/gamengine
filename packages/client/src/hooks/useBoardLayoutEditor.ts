@@ -307,10 +307,11 @@ export function useBoardLayoutEditor<L>(
     const ox = e.clientX - r.left
     const oy = e.clientY - r.top
     const rootId = optsRef.current.rootId
+    const ctrlOrMeta = e.ctrlKey || e.metaKey
 
     // If the root (board) is the current selection, a drag here moves it and its
     // descendants by delta — same path as dragging a container Zone.
-    const movingRoot = !!rootId && selectionRef.current.length === 1 && selectionRef.current[0] === rootId
+    const movingRoot = !!rootId && !ctrlOrMeta && selectionRef.current.length === 1 && selectionRef.current[0] === rootId
     if (movingRoot) {
       const ids = [rootId!, ...getDescendants(layoutRef.current, rootId!)]
       let lastX = e.clientX, lastY = e.clientY
@@ -345,10 +346,16 @@ export function useBoardLayoutEditor<L>(
       window.removeEventListener('pointerup', onUp)
       setMarqueeRect(curr => {
         if (!moved || !curr) {
-          // Plain click → select the root container (the board) if configured,
-          // otherwise clear the selection.
-          if (rootId) { setSelection([rootId]); setSelectedEl(rootId) }
-          else        { clearSelection() }
+          const rootSelected = !!rootId && selectionRef.current.includes(rootId)
+          if (ctrlOrMeta && rootSelected) {
+            // Ctrl/⌘+click while root is selected → deselect.
+            clearSelection()
+          } else if (rootId) {
+            // Plain click → select the root container (the board).
+            setSelection([rootId]); setSelectedEl(rootId)
+          } else {
+            clearSelection()
+          }
           return null
         }
         // AABB hit-test every registered zone against the marquee.

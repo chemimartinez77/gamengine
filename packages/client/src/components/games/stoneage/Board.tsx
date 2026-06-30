@@ -10,7 +10,8 @@ import { Zone, LayoutEditorToolbar } from '../../board'
 import {
   createStoneAgeLayout, fromStoneAgeShared, getStoneAgeAnchor, setStoneAgeAnchor,
   scaleStoneAgeElement, exportStoneAgeLayout, getStoneAgeElementScale,
-  getStoneAgeChildren, STONEAGE_ROOT_ID, STONEAGE_LS_KEY, type StoneAgeBoardLayout,
+  getStoneAgeChildren, STONEAGE_ROOT_ID, STONEAGE_LS_KEY, STONEAGE_MEEPLE_IDS,
+  type StoneAgeBoardLayout,
 } from './boardLayout'
 // Dev sidecar (server-written); imported statically so Vite HMR re-ingests on save.
 import localStoneAgeLayout from './layout.json'
@@ -111,6 +112,7 @@ function loadStoneAgeLayout(): StoneAgeBoardLayout {
     return {
       scales:  { ...base.scales,  ...(p.scales  ?? {}) },
       anchors: { ...base.anchors, ...(p.anchors ?? {}) },
+      parents: { ...base.parents, ...(p.parents ?? {}) },
     }
   } catch {}
   return base
@@ -189,15 +191,71 @@ function BoardCivCard({ card, width }: { card: StoneAgeCivilizationCard | null; 
 
 // ── Player dashboard ──────────────────────────────────────────────────────────
 
-function PlayerDashboard({ player, isActive }: { player: StoneAgePlayerState; isActive: boolean }) {
+// Below this scale the dashboard switches to a compact, high-legibility view.
+const PLAYER_COMPACT_THRESHOLD = 0.5
+// Never let overlay text render smaller than this (px) — keeps it readable even
+// when the board is zoomed far out.
+const MIN_OVERLAY_FONT = 9
+
+function PlayerDashboard({
+  player, isActive, scale = 1, containerW = 380,
+}: {
+  player:      StoneAgePlayerState
+  isActive:    boolean
+  scale?:      number
+  containerW?: number
+}) {
   const hex   = PC_HEX[player.color]
   const mpSrc = `${MEEPLE_IMG_BASE}${player.color.toLowerCase()}.png`
+  const compact = scale < PLAYER_COMPACT_THRESHOLD
 
+  // All overlay sizes are relative to the rendered container width so they
+  // scale correctly at any zoom level without any separate scale multiplier.
+  // `rw(pct)` → px, floored at MIN_OVERLAY_FONT for text.
+  const rw  = (pct: number) => Math.max(MIN_OVERLAY_FONT, Math.round(containerW * pct))
+  // Alias kept for short call sites below.
+  const fs  = (basePct: number) => rw(basePct)
+
+  // ── Compact view: just the essentials, sized for legibility ────────────────
+  if (compact) {
+    return (
+      <div style={{
+        position: 'relative', width: '100%', paddingBottom: `${(3201/4716)*100}%`,
+        backgroundImage: `url(${PLAYER_BOARD_IMG})`, backgroundSize: '100% 100%',
+        borderRadius: 10, overflow: 'hidden',
+        boxShadow: isActive
+          ? `0 0 0 3px ${hex}, 0 4px 20px rgba(0,0,0,0.65)`
+          : '0 2px 10px rgba(0,0,0,0.5)',
+      }}>
+        {/* Single legible strip: colour dot · name · meeples · score */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: 'rgba(0,0,0,0.55)', padding: '0 8px',
+        }}>
+          <span style={{ width: fs(0.034), height: fs(0.034), borderRadius: '50%', background: hex, flexShrink: 0 }} />
+          <span style={{ fontWeight: 800, fontSize: fs(0.034), color: '#fff',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {player.name}
+          </span>
+          <span style={{ fontWeight: 900, fontSize: fs(0.037), color: '#fff', flexShrink: 0,
+            textShadow: '0 0 4px #000, 0 0 4px #000' }}>
+            {player.meeples.available}<span style={{ opacity: 0.6 }}>/{player.meeples.total}</span>
+          </span>
+          <span style={{ fontSize: fs(0.034), fontWeight: 800, color: '#d4af37', flexShrink: 0 }}>
+            {player.score}pts
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Full view ──────────────────────────────────────────────────────────────
   return (
     <div style={{
       position: 'relative',
       width: '100%',
-      aspectRatio: '4716 / 3201',
+      paddingBottom: `${(3201/4716)*100}%`,
       backgroundImage: `url(${PLAYER_BOARD_IMG})`,
       backgroundSize: '100% 100%',
       borderRadius: 10,
@@ -214,21 +272,21 @@ function PlayerDashboard({ player, isActive }: { player: StoneAgePlayerState; is
         background: 'rgba(0,0,0,0.72)', borderRadius: 5, padding: '2px 7px',
       }}>
         <span style={{
-          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+          display: 'inline-block', width: fs(0.022), height: fs(0.022), borderRadius: '50%',
           background: hex, flexShrink: 0,
         }} />
-        <span style={{ fontWeight: 800, fontSize: 11, color: '#fff', flex: 1,
+        <span style={{ fontWeight: 800, fontSize: fs(0.029), color: '#fff', flex: 1,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {player.name}
         </span>
         {isActive && (
           <span style={{
             background: '#d4af37', color: '#1a0e06', fontWeight: 800,
-            fontSize: 8, borderRadius: 3, padding: '1px 4px',
+            fontSize: fs(0.021), borderRadius: 3, padding: '1px 4px',
             textTransform: 'uppercase', flexShrink: 0,
           }}>Turno</span>
         )}
-        <span style={{ fontSize: 11, fontWeight: 800, color: '#d4af37', flexShrink: 0 }}>
+        <span style={{ fontSize: fs(0.029), fontWeight: 800, color: '#d4af37', flexShrink: 0 }}>
           {player.score}pts
         </span>
       </div>
@@ -239,27 +297,9 @@ function PlayerDashboard({ player, isActive }: { player: StoneAgePlayerState; is
         background: 'rgba(0,0,0,0.72)', borderRadius: 5, padding: '2px 6px',
         display: 'flex', alignItems: 'center', gap: 3,
       }}>
-        <span style={{ fontSize: 8 }}>🛠️</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: '#fcd34d' }}>
+        <span style={{ fontSize: fs(0.021) }}>🛠️</span>
+        <span style={{ fontSize: fs(0.026), fontWeight: 700, color: '#fcd34d' }}>
           {player.tools.values.length > 0 ? player.tools.values.join('+') : '—'}
-        </span>
-      </div>
-
-      {/* Meeples — upper-left ladder area */}
-      <div style={{
-        position: 'absolute', left: '1.5%', top: '12%',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-      }}>
-        <img src={mpSrc} alt="meeple" style={{
-          width: 14, height: 'auto',
-          filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9))',
-        }} />
-        <span style={{
-          fontSize: 10, fontWeight: 900, color: '#fff', lineHeight: 1,
-          textShadow: '0 0 4px #000, 0 0 4px #000',
-        }}>
-          {player.meeples.available}
-          <span style={{ fontSize: 8, opacity: 0.65 }}>/{player.meeples.total}</span>
         </span>
       </div>
 
@@ -268,33 +308,36 @@ function PlayerDashboard({ player, isActive }: { player: StoneAgePlayerState; is
         position: 'absolute', left: '1.5%', top: '50%',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
       }}>
-        <span style={{ fontSize: 9, lineHeight: 1.1 }}>🌾</span>
+        <span style={{ fontSize: fs(0.032), lineHeight: 1.1 }}>🌾</span>
         <span style={{
-          fontSize: 10, fontWeight: 900, color: '#86efac', lineHeight: 1,
+          fontSize: fs(0.032), fontWeight: 900, color: '#86efac', lineHeight: 1,
           textShadow: '0 0 4px #000, 0 0 4px #000',
         }}>{player.agriculture}</span>
       </div>
 
       {/* Resource count badges — overlaid on the resource icons */}
       {(Object.entries(RES_POS) as Array<[StoneAgeResourceType, { left: string; top: string }]>).map(
-        ([type, pos]) => (
-          <div key={type} style={{
-            position: 'absolute',
-            left: pos.left,
-            top: pos.top,
-            transform: 'translate(-50%, -50%)',
-            width: 21, height: 21,
-            borderRadius: '50%',
-            background: RES_COLOR[type],
-            border: '1.5px solid rgba(255,255,255,0.55)',
-            boxShadow: '0 1px 5px rgba(0,0,0,0.85)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 9, fontWeight: 900, color: '#fff',
-            textShadow: '0 1px 2px rgba(0,0,0,0.9)',
-          }}>
-            {player.resources[type]}
-          </div>
-        )
+        ([type, pos]) => {
+          const badgeSize = Math.round(containerW * 0.055)
+          return (
+            <div key={type} style={{
+              position: 'absolute',
+              left: pos.left,
+              top: pos.top,
+              transform: 'translate(-50%, -50%)',
+              width: badgeSize, height: badgeSize,
+              borderRadius: '50%',
+              background: RES_COLOR[type],
+              border: '1.5px solid rgba(255,255,255,0.55)',
+              boxShadow: '0 1px 5px rgba(0,0,0,0.85)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: Math.max(8, Math.round(badgeSize * 0.48)), fontWeight: 900, color: '#fff',
+              textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+            }}>
+              {player.resources[type]}
+            </div>
+          )
+        }
       )}
     </div>
   )
@@ -393,10 +436,15 @@ export function StoneAgeBoard({
     return () => ro.disconnect()
   }, [])
 
+  // Player boards have their own scale floor (35%) — below that the artwork and
+  // overlays become illegible even with the compact view fallback.
+  const PBOARD_SCALE_MIN = 0.35
+  const pboardScale = (id: string) => Math.max(PBOARD_SCALE_MIN, getStoneAgeElementScale(layout, id))
+
   // Per-element base sizes (px) scaled by each element's own scale value.
   const hutW    = (id: string) => Math.round(86 * getStoneAgeElementScale(layout, id))
   const cardW   = (id: string) => Math.round(76 * getStoneAgeElementScale(layout, id))
-  const pboardW = (id: string) => Math.round(190 * getStoneAgeElementScale(layout, id))
+  const pboardW = (id: string) => Math.round(380 * pboardScale(id))
   // Board image width = full stage width × its own scale (default fills stage).
   const boardW  = Math.round(stageW * getStoneAgeElementScale(layout, STONEAGE_ROOT_ID))
   const boardSelected = selection.includes(STONEAGE_ROOT_ID)
@@ -545,7 +593,41 @@ export function StoneAgeBoard({
                   <PlayerDashboard
                     player={player}
                     isActive={i === stoneAgeState.activePlayerIndex}
+                    scale={pboardScale(id)}
+                    containerW={pboardW(id)}
                   />
+                </div>
+              </Zone>
+            )
+          })}
+
+          {/* Meeple counters — independent zones, children of their player board. */}
+          {stoneAgeState.players.map((player, i) => {
+            const id = STONEAGE_MEEPLE_IDS[i]
+            if (!id) return null
+            const meepleSize = Math.round(48 * getStoneAgeElementScale(layout, id))
+            const mpSrc = `${MEEPLE_IMG_BASE}${player.color.toLowerCase()}.png`
+            return (
+              <Zone
+                key={id}
+                anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 10 + i * 24, leftPct: 89 }}
+                editor={editorFor(id)}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <img
+                    src={mpSrc} alt={`meeple-${player.color}`} draggable={false}
+                    style={{ width: meepleSize, height: 'auto', display: 'block',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.9))' }}
+                  />
+                  <span style={{
+                    fontSize: Math.max(8, Math.round(meepleSize * 0.42)), fontWeight: 900,
+                    color: '#fff', lineHeight: 1,
+                    textShadow: '0 0 4px #000, 0 0 4px #000',
+                    background: 'rgba(0,0,0,0.55)', borderRadius: 4, padding: '1px 4px',
+                  }}>
+                    {player.meeples.available}
+                    <span style={{ opacity: 0.65 }}>/{player.meeples.total}</span>
+                  </span>
                 </div>
               </Zone>
             )

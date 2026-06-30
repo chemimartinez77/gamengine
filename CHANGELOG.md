@@ -6,6 +6,13 @@ las fechas siguen el formato `YYYY-MM-DD`.
 
 ## 2026-06-30 (sesión 1)
 
+### Stone Age: Engine & Placement Logic
+
+*   **Game Engine**: Implementada la lógica completa de la **Fase 1: Colocación de Trabajadores**.
+    *   **Validación de Reglas**: Integradas las restricciones del reglamento (capacidad por zona, límite de 7 figuras en recursos, reglas de 2 jugadores).
+    *   **Gestión de Turnos**: Sistema automático de turno horario (`clockwise`) con detección de jugadores sin meeples y transición a fase de resolución.
+    *   **API de Movimientos**: Implementados tipos y validaciones para `PLACE_FIGURES` con manejo de errores detallado.
+
 *   **Layout Editor**:
     *   **Tablero Raíz**: El tablero principal ya no es fondo estático; es un elemento seleccionable y movible (`board_root`).
     *   **Movimiento Jerárquico**: Arrastrar el tablero mueve automáticamente todo el conjunto de piezas anidadas.

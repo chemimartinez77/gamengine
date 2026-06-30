@@ -93,6 +93,8 @@ export function initStoneAgeGame(
   const activeCards  = shuffledDeck.slice(0, ACTIVE_CARD_SLOTS) as (StoneAgeCivilizationCard | null)[]
   const remaining    = shuffledDeck.slice(ACTIVE_CARD_SLOTS)
 
+  const turnOrder = playerStates.map((_, i) => i)
+
   return {
     players:               playerStates,
     turn:                  0,
@@ -101,6 +103,9 @@ export function initStoneAgeGame(
     currentTurn:           1,
     currentPhase:          'PLACEMENT',
     activePlayerIndex:     0,
+    turnOrder,
+    placementTurnIndex:    0,
+    boardOccupancy:        {},
     hutPiles,
     civilizationCardsDeck: remaining,
     activeCards,

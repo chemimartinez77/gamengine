@@ -1,46 +1,109 @@
 {
   "scales": {
-    "hut_pile_0": 1.9,
-    "hut_pile_1": 1.9,
-    "hut_pile_2": 1.9,
-    "hut_pile_3": 1.9,
-    "civ_card_0": 2.5,
-    "civ_card_1": 2.5,
-    "civ_card_2": 2.5,
-    "civ_card_3": 2.5
+    "board_root": 0.6,
+    "hut_pile_0": 1.5,
+    "hut_pile_1": 1.5,
+    "hut_pile_2": 1.5,
+    "hut_pile_3": 1.5,
+    "civ_card_0": 2,
+    "civ_card_1": 2,
+    "civ_card_2": 2,
+    "civ_card_3": 2,
+    "player_board_0": 2.1,
+    "player_board_1": 2.1,
+    "player_board_2": 1,
+    "player_board_3": 1,
+    "meeple_0": 1,
+    "meeple_1": 1,
+    "meeple_2": 1,
+    "meeple_3": 1
   },
   "anchors": {
+    "board_root": {
+      "leftPct": 30.49,
+      "topPct": 30.83
+    },
     "hut_pile_0": {
-      "leftPct": 33.91,
-      "topPct": 84.57
+      "leftPct": 20.83,
+      "topPct": 51.02
     },
     "hut_pile_1": {
-      "leftPct": 24.26,
-      "topPct": 84.58
+      "leftPct": 14.98,
+      "topPct": 51.03
     },
     "hut_pile_2": {
-      "leftPct": 43.58,
-      "topPct": 84.49
+      "leftPct": 26.59,
+      "topPct": 50.98
     },
     "hut_pile_3": {
-      "leftPct": 14.71,
-      "topPct": 84.58
+      "leftPct": 9.33,
+      "topPct": 51.03
     },
     "civ_card_0": {
-      "leftPct": 57.07,
-      "topPct": 81.35
+      "leftPct": 47.62,
+      "topPct": 49.54
     },
     "civ_card_1": {
-      "leftPct": 67.91,
-      "topPct": 81.5
+      "leftPct": 34.76,
+      "topPct": 49.44
     },
     "civ_card_2": {
-      "leftPct": 78.79,
-      "topPct": 81.53
+      "leftPct": 41.05,
+      "topPct": 49.57
     },
     "civ_card_3": {
-      "leftPct": 89.32,
-      "topPct": 81.48
+      "leftPct": 54.02,
+      "topPct": 49.57
+    },
+    "player_board_0": {
+      "leftPct": 76.97,
+      "topPct": 16.89
+    },
+    "player_board_1": {
+      "leftPct": 77.01,
+      "topPct": 48.96
+    },
+    "player_board_2": {
+      "leftPct": 37.6,
+      "topPct": 42.83
+    },
+    "player_board_3": {
+      "leftPct": 37.6,
+      "topPct": 66.83
+    },
+    "meeple_0": {
+      "leftPct": 73.89,
+      "topPct": 8.61
+    },
+    "meeple_1": {
+      "leftPct": 74.13,
+      "topPct": 41.03
+    },
+    "meeple_2": {
+      "topPct": 58,
+      "leftPct": 89
+    },
+    "meeple_3": {
+      "topPct": 82,
+      "leftPct": 89
     }
+  },
+  "parents": {
+    "hut_pile_0": "board_root",
+    "hut_pile_1": "board_root",
+    "hut_pile_2": "board_root",
+    "hut_pile_3": "board_root",
+    "civ_card_0": "board_root",
+    "civ_card_1": "board_root",
+    "civ_card_2": "board_root",
+    "civ_card_3": "board_root",
+    "player_board_0": "board_root",
+    "player_board_1": "board_root",
+    "player_board_2": "board_root",
+    "player_board_3": "board_root",
+    "meeple_0": "player_board_0",
+    "meeple_1": "player_board_1",
+    "meeple_2": "player_board_2",
+    "meeple_3": "player_board_3"
   }
 }

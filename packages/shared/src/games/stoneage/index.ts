@@ -19,6 +19,77 @@ export type StoneAgePlayerColor = 'RED' | 'BLUE' | 'YELLOW' | 'GREEN';
 
 export type StoneAgeGamePhase = 'PLACEMENT' | 'RESOLUTION' | 'FEEDING';
 
+// ── Board locations ───────────────────────────────────────────────────────────
+
+/**
+ * Every distinct space on the main board where figures can be placed.
+ *
+ * Capacity rules (per rulebook):
+ *   HUNTING_GROUNDS          — unlimited figures, any number of players
+ *   FOREST / CLAY_MOUND /
+ *   QUARRY / RIVER           — up to 7 figures total; exclusivity by player count
+ *                              (4p: any players; 3p: max 2 players; 2p: max 1 player)
+ *   TOOL_MAKER / FIELD       — exactly 1 figure; only 1 player per round
+ *   HUT                      — exactly 2 figures of the SAME player, placed together
+ *   CIV_CARD_0..3            — 1 figure each
+ *   HUT_PILE_0..3            — 1 figure each (building tile spaces)
+ */
+export type StoneAgeBoardLocation =
+  | 'HUNTING_GROUNDS'
+  | 'FOREST'
+  | 'CLAY_MOUND'
+  | 'QUARRY'
+  | 'RIVER'
+  | 'TOOL_MAKER'
+  | 'FIELD'
+  | 'HUT'
+  | 'CIV_CARD_0'
+  | 'CIV_CARD_1'
+  | 'CIV_CARD_2'
+  | 'CIV_CARD_3'
+  | 'HUT_PILE_0'
+  | 'HUT_PILE_1'
+  | 'HUT_PILE_2'
+  | 'HUT_PILE_3';
+
+/** Locations where the 2/3-player "only 2 of 3 may be occupied" rule applies. */
+export const STONEAGE_LIMITED_LOCATIONS: readonly StoneAgeBoardLocation[] = [
+  'TOOL_MAKER', 'HUT', 'FIELD',
+] as const;
+
+/** Resource-gathering locations subject to the per-player-count exclusivity rule. */
+export const STONEAGE_RESOURCE_LOCATIONS: readonly StoneAgeBoardLocation[] = [
+  'FOREST', 'CLAY_MOUND', 'QUARRY', 'RIVER',
+] as const;
+
+/** Max figures total across all players at each resource location. */
+export const STONEAGE_RESOURCE_LOCATION_CAPACITY = 7;
+
+// ── Placement state ───────────────────────────────────────────────────────────
+
+/**
+ * Which player (by playerIndex) occupies each location and with how many figures.
+ * A location absent from the map means it is unoccupied.
+ * Resource locations can hold figures from multiple players (except in 2/3p).
+ */
+export type StoneAgeBoardOccupancy = Partial<
+  Record<StoneAgeBoardLocation, Array<{ playerIndex: number; count: number }>>
+>;
+
+// ── Moves ─────────────────────────────────────────────────────────────────────
+
+export interface StoneAgePlaceFiguresPayload {
+  type:     'PLACE_FIGURES';
+  location: StoneAgeBoardLocation;
+  /** Number of figures to place. Must be ≥ 1. HUT requires exactly 2. */
+  count:    number;
+}
+
+export type StoneAgeMovePayload = StoneAgePlaceFiguresPayload;
+// (future phases will add TAKE_ACTION, FEED_TRIBE, etc.)
+
+// ── Component types ───────────────────────────────────────────────────────────
+
 export interface StoneAgeMeepleState {
   total:     number;
   available: number;
@@ -92,7 +163,24 @@ export interface StoneAgeGameState extends GameState {
   players:                StoneAgePlayerState[];
   currentTurn:            number;
   currentPhase:           StoneAgeGamePhase;
+  /**
+   * Index into `players` of whoever acts next (places figures or takes action).
+   * During PLACEMENT this advances clockwise and wraps; during RESOLUTION it
+   * follows the same clockwise order starting from the first player.
+   */
   activePlayerIndex:      number;
+  /**
+   * Ordered list of player indices for this round's clockwise turn sequence.
+   * Index 0 is the first player (holds the First Player token).
+   */
+  turnOrder:              number[];
+  /**
+   * Position within `turnOrder` of the player whose PLACEMENT sub-turn it is.
+   * A player is skipped once their `meeples.available === 0`.
+   */
+  placementTurnIndex:     number;
+  /** Which figures are on which board location, and whose they are. */
+  boardOccupancy:         StoneAgeBoardOccupancy;
   hutPiles:               StoneAgeHutTile[][];
   civilizationCardsDeck:  StoneAgeCivilizationCard[];
   /** Exactly 4 slots; null means the slot is empty (card bought or not yet drawn). */
