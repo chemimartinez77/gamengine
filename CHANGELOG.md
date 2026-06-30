@@ -6,6 +6,16 @@ las fechas siguen el formato `YYYY-MM-DD`.
 
 ## 2026-06-30 (sesión 1)
 
+### Stone Age Integration & Layout Editor Overhaul
+
+*   **Game Engine**: Implementado **Stone Age** (motor completo y UI con artes oficiales).
+*   **Layout Editor (Pro-grade)**: 
+    *   **Selección**: Añadida *marquee selection* para manipular múltiples objetos simultáneamente.
+    *   **Historial**: Sistema de *Undo/Redo* (5 pasos) para todas las mutaciones de diseño.
+    *   **Escalado**: Sistema de escalas independientes por entidad (`hutScale`, `civScale`, etc.).
+*   **UI/UX**: Tableros de jugador dinámicos y mazos de cabañas optimizados (visualización de loseta única + contador).
+*   **Infraestructura**: Migración a Tailwind v4 y optimización del flujo de trabajo en Sandbox (`?edit=true`).
+
 ### Editor de maquetación — selección múltiple y escala por elemento
 
 - **Marquee + multi-selección** (`useBoardLayoutEditor`): se añade un array
