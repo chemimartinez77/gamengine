@@ -22,10 +22,16 @@ interface LayoutEditorToolbarProps {
   selectionCount?:  number
   /** Clear the current selection. */
   onClearSelection?: () => void
+  /** Undo / redo the last layout operation (history up to 5 steps). */
+  onUndo?:          () => void
+  onRedo?:          () => void
+  canUndo?:         boolean
+  canRedo?:         boolean
 }
 
 export function LayoutEditorToolbar({
   saveState, errorMessage, lastWrittenPath, onSave, selectionCount = 0, onClearSelection,
+  onUndo, onRedo, canUndo = false, canRedo = false,
 }: LayoutEditorToolbarProps) {
   const saving  = saveState === 'saving'
   const success = saveState === 'success'
@@ -50,6 +56,32 @@ export function LayoutEditorToolbar({
           <kbd style={styles.kbd}>Ctrl/⌘ + S</kbd> para guardar
         </span>
       </div>
+
+      {(onUndo || onRedo) && (
+        <div style={styles.row}>
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            style={{ ...styles.histBtn, ...(canUndo ? null : styles.histBtnOff) }}
+            title="Deshacer (Ctrl/⌘ + Z)"
+          >
+            ↶ Deshacer
+          </button>
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            style={{ ...styles.histBtn, ...(canRedo ? null : styles.histBtnOff) }}
+            title="Rehacer (Ctrl/⌘ + Y)"
+          >
+            ↷ Rehacer
+          </button>
+          <span style={styles.legend}>
+            <kbd style={styles.kbd}>Ctrl/⌘ + Z</kbd> / <kbd style={styles.kbd}>Ctrl/⌘ + Y</kbd>
+          </span>
+        </div>
+      )}
 
       <div style={styles.scaleRow}>
         <span style={{ ...styles.scaleChip, ...(selectionCount > 0 ? styles.scaleChipActive : null) }}>
@@ -122,5 +154,14 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11, fontWeight: 600, color: '#fca5a5', cursor: 'pointer',
     background: 'rgba(179,51,31,0.18)', border: '1px solid rgba(179,51,31,0.55)',
     borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap',
+  },
+  histBtn: {
+    fontSize: 12, fontWeight: 700, color: '#cfe0ff', cursor: 'pointer',
+    background: 'rgba(59,130,246,0.18)', border: '1px solid rgba(59,130,246,0.55)',
+    borderRadius: 6, padding: '4px 10px', whiteSpace: 'nowrap',
+  },
+  histBtnOff: {
+    color: '#5b6577', cursor: 'not-allowed',
+    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)',
   },
 }

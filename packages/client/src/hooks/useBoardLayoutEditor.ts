@@ -25,6 +25,9 @@ import type { ZoneEditor, ZoneBox } from '../components/board/Zone'
 const clamp  = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const round2 = (v: number) => Math.round(v * 100) / 100
 
+/** How many discrete operations the undo/redo history keeps. */
+const HISTORY_LIMIT = 5
+
 function readEditFlag(): boolean {
   if (typeof window === 'undefined') return false
   return new URLSearchParams(window.location.search).get('edit') === 'true'
@@ -84,6 +87,13 @@ export interface UseBoardLayoutEditorResult<L> {
   marqueeRect: MarqueeRect | null
   /** Convenience style for the marquee overlay div. */
   marqueeStyle: CSSProperties | null
+  /** Undo the last layout operation (Ctrl/⌘+Z). */
+  undo: () => void
+  /** Redo the last undone operation (Ctrl/⌘+Y or Ctrl/⌘+Shift+Z). */
+  redo: () => void
+  /** Whether there is anything to undo / redo (for toolbar buttons). */
+  canUndo: boolean
+  canRedo: boolean
 }
 
 export function useBoardLayoutEditor<L>(
@@ -101,6 +111,46 @@ export function useBoardLayoutEditor<L>(
 
   const layoutRef = useRef(layout)
   layoutRef.current = layout
+
+  // Undo/redo history of full layout snapshots (most recent last). Capped at
+  // HISTORY_LIMIT discrete operations (a drag, a nudge, a scale step, a reset).
+  const undoStack = useRef<L[]>([])
+  const redoStack = useRef<L[]>([])
+  // Bumped on every history change so canUndo/canRedo re-render reactively.
+  const [, setHistoryVersion] = useState(0)
+  const bumpHistory = useCallback(() => setHistoryVersion(v => v + 1), [])
+
+  // Deep-ish clone of a layout snapshot (layouts are plain JSON: scales+anchors).
+  const snapshot = useCallback((L: L): L => {
+    try { return structuredClone(L) } catch { return JSON.parse(JSON.stringify(L)) as L }
+  }, [])
+
+  // Push the *current* layout onto the undo stack before a new mutation lands,
+  // and drop the redo branch. Call this once at the start of each operation.
+  const pushHistory = useCallback(() => {
+    undoStack.current.push(snapshot(layoutRef.current))
+    if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift()
+    redoStack.current = []
+    bumpHistory()
+  }, [snapshot, bumpHistory])
+
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop()
+    if (prev === undefined) return
+    redoStack.current.push(snapshot(layoutRef.current))
+    if (redoStack.current.length > HISTORY_LIMIT) redoStack.current.shift()
+    setLayout(prev)
+    bumpHistory()
+  }, [snapshot, bumpHistory])
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop()
+    if (next === undefined) return
+    undoStack.current.push(snapshot(layoutRef.current))
+    if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift()
+    setLayout(next)
+    bumpHistory()
+  }, [snapshot, bumpHistory])
 
   // Latest selection reachable from key listeners without re-binding them.
   const selectionRef = useRef(selection)
@@ -172,8 +222,10 @@ export function useBoardLayoutEditor<L>(
 
     const r0 = stage.getBoundingClientRect()
     let lastX = e.clientX, lastY = e.clientY
+    let dragged = false  // snapshot the layout only once a real drag begins
 
     const onMove = (ev: globalThis.PointerEvent) => {
+      if (!dragged) { dragged = true; pushHistory() }  // one history entry per drag
       if (ids.length === 1) {
         // Single piece: centre follows the cursor (absolute placement).
         const leftPct = clamp(((ev.clientX - r0.left) / r0.width)  * 100, 0, 100)
@@ -193,7 +245,7 @@ export function useBoardLayoutEditor<L>(
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [isEditorMode, stageRef, toggleInSelection, nudge])
+  }, [isEditorMode, stageRef, toggleInSelection, nudge, pushHistory])
 
   // Pointer-down on empty stage space → start a marquee (or clear on click).
   const startMarquee = useCallback((e: PointerEvent) => {
@@ -262,18 +314,30 @@ export function useBoardLayoutEditor<L>(
         ? selectionRef.current
         : (selectedEl ? [selectedEl] : [])
 
+      // Undo / redo — Ctrl/⌘+Z and Ctrl/⌘+Y (also Ctrl/⌘+Shift+Z to redo).
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (e.shiftKey) redo(); else undo()
+        e.preventDefault(); return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        redo(); e.preventDefault(); return
+      }
+
       if (e.key === 'Escape') { clearSelection(); return }
       // Plain S = optional console export; Ctrl/⌘+S (server save) is handled elsewhere.
       if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) {
         onExport?.(layoutRef.current); e.preventDefault(); return
       }
       if ((e.key === 'u' || e.key === 'U') && adjustStackOffset) {
+        pushHistory()
         setLayout(L => adjustStackOffset(L, 1)); e.preventDefault(); return
       }
       if ((e.key === 'd' || e.key === 'D') && adjustStackOffset) {
+        pushHistory()
         setLayout(L => adjustStackOffset(L, -1)); e.preventDefault(); return
       }
       if (e.key === 'r' || e.key === 'R') {
+        pushHistory()
         setLayout(factory())
         try { localStorage.removeItem(lsKey) } catch {}
         e.preventDefault(); return
@@ -281,6 +345,7 @@ export function useBoardLayoutEditor<L>(
       if ((e.key === '+' || e.key === '=' || e.key === 'Add' || e.key === '-' || e.key === 'Subtract')
           && targets.length > 0 && scaleSelected) {
         const dir: 1 | -1 = (e.key === '+' || e.key === '=' || e.key === 'Add') ? 1 : -1
+        pushHistory()
         setLayout(L => targets.reduce((acc, id) => scaleSelected(acc, id, dir), L))
         e.preventDefault(); return
       }
@@ -292,17 +357,17 @@ export function useBoardLayoutEditor<L>(
       const stepX = (100 / W) * big   // % equivalent of 1px (×big) on each axis
       const stepY = (100 / H) * big
       switch (e.key) {
-        case 'ArrowLeft':  nudge(targets, -stepX, 0); break
-        case 'ArrowRight': nudge(targets,  stepX, 0); break
-        case 'ArrowUp':    nudge(targets, 0, -stepY); break
-        case 'ArrowDown':  nudge(targets, 0,  stepY); break
+        case 'ArrowLeft':  pushHistory(); nudge(targets, -stepX, 0); break
+        case 'ArrowRight': pushHistory(); nudge(targets,  stepX, 0); break
+        case 'ArrowUp':    pushHistory(); nudge(targets, 0, -stepY); break
+        case 'ArrowDown':  pushHistory(); nudge(targets, 0,  stepY); break
         default: return
       }
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isEditorMode, selectedEl, lsKey, stageRef, nudge, clearSelection])
+  }, [isEditorMode, selectedEl, lsKey, stageRef, nudge, clearSelection, pushHistory, undo, redo])
 
   // Auto-save to the localStorage scratchpad on every change while editing.
   useEffect(() => {
@@ -343,5 +408,8 @@ export function useBoardLayoutEditor<L>(
     editorFor,
     stageSelectionProps: { onPointerDown: startMarquee },
     marqueeRect, marqueeStyle,
+    undo, redo,
+    canUndo: undoStack.current.length > 0,
+    canRedo: redoStack.current.length > 0,
   }
 }

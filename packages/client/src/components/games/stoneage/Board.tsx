@@ -363,7 +363,7 @@ export function StoneAgeBoard({
   const stageRef = useRef<HTMLDivElement>(null)
   const {
     layout, setLayout, layoutRef, editorFor, selection, clearSelection,
-    stageSelectionProps, marqueeStyle,
+    stageSelectionProps, marqueeStyle, undo, redo, canUndo, canRedo,
   } = useBoardLayoutEditor<StoneAgeBoardLayout>({
     stageRef, lsKey: STONEAGE_LS_KEY, load: loadStoneAgeLayout, factory: createStoneAgeLayout,
     getAnchor: getStoneAgeAnchor, setAnchor: setStoneAgeAnchor,
@@ -409,6 +409,10 @@ export function StoneAgeBoard({
           onSave={layoutEditor.save}
           selectionCount={selection.length}
           onClearSelection={clearSelection}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
         />
       )}
 
