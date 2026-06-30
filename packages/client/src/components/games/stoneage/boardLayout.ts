@@ -22,19 +22,24 @@ export const STONEAGE_ZONE_IDS = [
   'civ_card_0', 'civ_card_1', 'civ_card_2', 'civ_card_3',
 ] as const
 
-/** scales.* keys used by Stone Age (hut piles and civ cards scale independently). */
-export const HUT_SCALE_KEY = 'hutScale'
-export const CIV_SCALE_KEY = 'civScale'
+// Legacy group-scale keys (pre multi-selection). Kept only for migration so old
+// sidecars/scratchpads seed every element with its former group value.
+const LEGACY_HUT_SCALE_KEY = 'hutScale'
+const LEGACY_CIV_SCALE_KEY = 'civScale'
+const LEGACY_CARD_SCALE_KEY = 'cardScale'
 
 /** A zone id belongs to the hut group (vs. the civ-card group). */
 export function isHutZone(id: string): boolean {
   return id.startsWith('hut_pile_')
 }
 
-/** Factory defaults (the reset target + what the baseline `layout.json` mirrors). */
+/**
+ * Factory defaults (the reset target + what the baseline `layout.json` mirrors).
+ * Every element carries its own scale under `scales[id]`, defaulting to 1.
+ */
 export function createStoneAgeLayout(): StoneAgeBoardLayout {
   return {
-    scales: { [HUT_SCALE_KEY]: 1, [CIV_SCALE_KEY]: 1 },
+    scales: Object.fromEntries(STONEAGE_ZONE_IDS.map(id => [id, 1])),
     anchors: {
       // 4 hut piles — rough guess across the upper terrain bands.
       hut_pile_0: { topPct: 26, leftPct: 36 },
@@ -68,32 +73,47 @@ function readScale(L: StoneAgeBoardLayout, key: string): number {
   return typeof v === 'number' ? v : 1
 }
 
-/** Scale applied to the 4 hut piles. */
-export function stoneAgeHutScale(L: StoneAgeBoardLayout): number {
-  return readScale(L, HUT_SCALE_KEY)
-}
-
-/** Scale applied to the 4 civilization-card market spaces. */
-export function stoneAgeCivScale(L: StoneAgeBoardLayout): number {
-  return readScale(L, CIV_SCALE_KEY)
+/** Per-element scale for a given zone id (each element is independent). */
+export function getStoneAgeElementScale(L: StoneAgeBoardLayout, id: string): number {
+  return readScale(L, id)
 }
 
 /**
- * Editor `+ / -`: nudge the scale of whichever group the selected element
- * belongs to. Hut piles drive `hutScale`; civ cards drive `civScale`.
+ * Editor `+ / -`: nudge the scale of a single element (by id). The hook calls
+ * this once per selected element, so a marquee selection scales together.
  */
 export function scaleStoneAgeElement(L: StoneAgeBoardLayout, id: string, dir: 1 | -1): StoneAgeBoardLayout {
-  const key  = isHutZone(id) ? HUT_SCALE_KEY : CIV_SCALE_KEY
-  const next = Math.min(2.5, Math.max(0.4, Math.round((readScale(L, key) + dir * 0.1) * 100) / 100))
-  return { ...L, scales: { ...L.scales, [key]: next } }
+  const next = Math.min(2.5, Math.max(0.4, Math.round((readScale(L, id) + dir * 0.1) * 100) / 100))
+  return { ...L, scales: { ...L.scales, [id]: next } }
 }
 
-/** Deep-merge a (possibly partial / stale) shared layout over the factory defaults. */
+/**
+ * Deep-merge a (possibly partial / stale) shared layout over the factory
+ * defaults. Migrates legacy group scales (`hutScale`/`civScale`/`cardScale`)
+ * into per-element scales when no per-element value is present.
+ */
 export function fromStoneAgeShared(shared: Partial<StoneAgeBoardLayout> | undefined): StoneAgeBoardLayout {
   const d = createStoneAgeLayout()
   if (!shared) return d
+
+  const incoming = shared.scales ?? {}
+  const legacyHut  = typeof incoming[LEGACY_HUT_SCALE_KEY]  === 'number' ? incoming[LEGACY_HUT_SCALE_KEY]  as number : undefined
+  const legacyCiv  = typeof incoming[LEGACY_CIV_SCALE_KEY]  === 'number' ? incoming[LEGACY_CIV_SCALE_KEY]  as number : undefined
+  const legacyCard = typeof incoming[LEGACY_CARD_SCALE_KEY] === 'number' ? incoming[LEGACY_CARD_SCALE_KEY] as number : undefined
+
+  const scales: Record<string, number> = { ...d.scales }
+  for (const id of STONEAGE_ZONE_IDS) {
+    if (typeof incoming[id] === 'number') {
+      scales[id] = incoming[id] as number                 // explicit per-element wins
+    } else if (isHutZone(id) && (legacyHut ?? legacyCard) !== undefined) {
+      scales[id] = (legacyHut ?? legacyCard) as number     // seed from old hut group
+    } else if (!isHutZone(id) && (legacyCiv ?? legacyCard) !== undefined) {
+      scales[id] = (legacyCiv ?? legacyCard) as number     // seed from old civ group
+    }
+  }
+
   return {
-    scales:  { ...d.scales,  ...(shared.scales  ?? {}) },
+    scales,
     anchors: { ...d.anchors, ...(shared.anchors ?? {}) },
   }
 }

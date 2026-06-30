@@ -9,8 +9,8 @@ import { useEditorMode } from '../../../hooks/useEditorMode'
 import { Zone, LayoutEditorToolbar } from '../../board'
 import {
   createStoneAgeLayout, fromStoneAgeShared, getStoneAgeAnchor, setStoneAgeAnchor,
-  scaleStoneAgeElement, exportStoneAgeLayout, stoneAgeHutScale, stoneAgeCivScale,
-  isHutZone, STONEAGE_LS_KEY, type StoneAgeBoardLayout,
+  scaleStoneAgeElement, exportStoneAgeLayout, getStoneAgeElementScale,
+  STONEAGE_LS_KEY, type StoneAgeBoardLayout,
 } from './boardLayout'
 // Dev sidecar (server-written); imported statically so Vite HMR re-ingests on save.
 import localStoneAgeLayout from './layout.json'
@@ -362,7 +362,8 @@ export function StoneAgeBoard({
   // Generic visual layout editor — positions for the 4 hut piles + 4 civ cards.
   const stageRef = useRef<HTMLDivElement>(null)
   const {
-    layout, setLayout, layoutRef, editorFor, selectedEl,
+    layout, setLayout, layoutRef, editorFor, selection, clearSelection,
+    stageSelectionProps, marqueeStyle,
   } = useBoardLayoutEditor<StoneAgeBoardLayout>({
     stageRef, lsKey: STONEAGE_LS_KEY, load: loadStoneAgeLayout, factory: createStoneAgeLayout,
     getAnchor: getStoneAgeAnchor, setAnchor: setStoneAgeAnchor,
@@ -380,14 +381,9 @@ export function StoneAgeBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStoneAgeLayout])
 
-  const hutScale = stoneAgeHutScale(layout)
-  const civScale = stoneAgeCivScale(layout)
-  const hutW     = Math.round(86 * hutScale)
-  const cardW    = Math.round(76 * civScale)
-
-  // Which scale group the editor `+/-` keys currently act on (for the toolbar).
-  const activeScaleGroup: 'hut' | 'civ' | null =
-    selectedEl ? (isHutZone(selectedEl) ? 'hut' : 'civ') : null
+  // Per-element base sizes (px) scaled by each element's own scale value.
+  const hutW  = (id: string) => Math.round(86 * getStoneAgeElementScale(layout, id))
+  const cardW = (id: string) => Math.round(76 * getStoneAgeElementScale(layout, id))
 
   const activeName = stoneAgeState.players[stoneAgeState.activePlayerIndex]?.name ?? '…'
 
@@ -411,10 +407,8 @@ export function StoneAgeBoard({
           errorMessage={layoutEditor.errorMessage}
           lastWrittenPath={layoutEditor.lastWrittenPath}
           onSave={layoutEditor.save}
-          scales={[
-            { label: 'Cabañas', value: hutScale, active: activeScaleGroup === 'hut' },
-            { label: 'Cartas',  value: civScale, active: activeScaleGroup === 'civ' },
-          ]}
+          selectionCount={selection.length}
+          onClearSelection={clearSelection}
         />
       )}
 
@@ -449,6 +443,7 @@ export function StoneAgeBoard({
         <main>
           <div
             ref={stageRef}
+            {...(layoutEditor.isEditing ? stageSelectionProps : {})}
             style={{
               position: 'relative',
               width: '100%',
@@ -468,7 +463,7 @@ export function StoneAgeBoard({
                   anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 25, leftPct: 25 + i * 17 }}
                   editor={editorFor(id)}
                 >
-                  <BoardHutPile pile={pile} width={hutW} />
+                  <BoardHutPile pile={pile} width={hutW(id)} />
                 </Zone>
               )
             })}
@@ -482,10 +477,13 @@ export function StoneAgeBoard({
                   anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 66, leftPct: 57 + i * 11 }}
                   editor={editorFor(id)}
                 >
-                  <BoardCivCard card={card} width={cardW} />
+                  <BoardCivCard card={card} width={cardW(id)} />
                 </Zone>
               )
             })}
+
+            {/* Marquee selection rectangle (only while drawing) */}
+            {marqueeStyle && <div style={marqueeStyle} />}
           </div>
 
           <p className="mt-2 text-[11px] text-white/50">

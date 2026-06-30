@@ -13,25 +13,19 @@ import type { LayoutSaveState } from '../../hooks/useEditorMode'
 // established convention instead of Tailwind utility classes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** One named scale group shown in the toolbar (e.g. "Cabañas" vs "Cartas"). */
-export interface ScaleIndicator {
-  label:  string
-  value:  number
-  /** Highlighted when the current selection drives this group's +/- scaling. */
-  active: boolean
-}
-
 interface LayoutEditorToolbarProps {
   saveState:        LayoutSaveState
   errorMessage:     string | null
   lastWrittenPath?: string | null
   onSave:           () => void
-  /** Optional per-group scale readouts (decoupled scales). */
-  scales?:          ScaleIndicator[]
+  /** Number of elements currently selected (marquee / shift-click). */
+  selectionCount?:  number
+  /** Clear the current selection. */
+  onClearSelection?: () => void
 }
 
 export function LayoutEditorToolbar({
-  saveState, errorMessage, lastWrittenPath, onSave, scales,
+  saveState, errorMessage, lastWrittenPath, onSave, selectionCount = 0, onClearSelection,
 }: LayoutEditorToolbarProps) {
   const saving  = saveState === 'saving'
   const success = saveState === 'success'
@@ -57,22 +51,23 @@ export function LayoutEditorToolbar({
         </span>
       </div>
 
-      {scales && scales.length > 0 && (
-        <div style={styles.scaleRow}>
-          {scales.map(s => (
-            <span
-              key={s.label}
-              style={{ ...styles.scaleChip, ...(s.active ? styles.scaleChipActive : null) }}
-              title={s.active ? 'Grupo activo: usa + / − para escalar' : undefined}
-            >
-              {s.label}: <strong>{s.value.toFixed(1)}×</strong>
-            </span>
-          ))}
-          <span style={styles.scaleHint}>
-            <kbd style={styles.kbd}>+ / −</kbd> escala el grupo seleccionado
-          </span>
-        </div>
-      )}
+      <div style={styles.scaleRow}>
+        <span style={{ ...styles.scaleChip, ...(selectionCount > 0 ? styles.scaleChipActive : null) }}>
+          {selectionCount === 0
+            ? 'Sin selección'
+            : selectionCount === 1
+              ? '1 elemento'
+              : `Múltiple · ${selectionCount} elementos`}
+        </span>
+        {selectionCount > 0 && onClearSelection && (
+          <button type="button" onClick={onClearSelection} style={styles.clearBtn}>
+            Limpiar selección
+          </button>
+        )}
+        <span style={styles.scaleHint}>
+          <kbd style={styles.kbd}>+ / −</kbd> escala la selección · arrastra para marcar
+        </span>
+      </div>
 
       {success && lastWrittenPath && (
         <div style={styles.okText}>Guardado en {lastWrittenPath}</div>
@@ -123,4 +118,9 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid rgba(59,130,246,0.75)',
   },
   scaleHint: { fontSize: 10, color: '#7e8fb0', whiteSpace: 'nowrap' },
+  clearBtn: {
+    fontSize: 11, fontWeight: 600, color: '#fca5a5', cursor: 'pointer',
+    background: 'rgba(179,51,31,0.18)', border: '1px solid rgba(179,51,31,0.55)',
+    borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap',
+  },
 }

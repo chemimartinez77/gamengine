@@ -1,7 +1,13 @@
 {
   "scales": {
-    "hutScale": 1.9,
-    "civScale": 2.5
+    "hut_pile_0": 1.9,
+    "hut_pile_1": 1.9,
+    "hut_pile_2": 1.9,
+    "hut_pile_3": 1.9,
+    "civ_card_0": 2.5,
+    "civ_card_1": 2.5,
+    "civ_card_2": 2.5,
+    "civ_card_3": 2.5
   },
   "anchors": {
     "hut_pile_0": {
