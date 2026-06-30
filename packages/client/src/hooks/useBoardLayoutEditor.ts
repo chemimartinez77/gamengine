@@ -295,18 +295,43 @@ export function useBoardLayoutEditor<L>(
     window.addEventListener('pointerup', onUp)
   }, [isEditorMode, stageRef, toggleInSelection, nudge, pushHistory, getDescendants])
 
-  // Pointer-down on empty stage space → start a marquee (or clear on click).
+  // Pointer-down on empty stage / board background. Three outcomes:
+  //  • root already selected + drag  → move the whole board (root + subtree),
+  //  • drag (no root selected)       → marquee-select pieces,
+  //  • plain click                   → select the root container (or clear).
   const startMarquee = useCallback((e: PointerEvent) => {
     if (!isEditorMode) return
-    // Ignore when the press originated on a Zone (it stops propagation), so this
-    // only fires for genuinely empty stage space.
     const stage = stageRef.current
     if (!stage) return
     const r = stage.getBoundingClientRect()
     const ox = e.clientX - r.left
     const oy = e.clientY - r.top
-    let moved = false
+    const rootId = optsRef.current.rootId
 
+    // If the root (board) is the current selection, a drag here moves it and its
+    // descendants by delta — same path as dragging a container Zone.
+    const movingRoot = !!rootId && selectionRef.current.length === 1 && selectionRef.current[0] === rootId
+    if (movingRoot) {
+      const ids = [rootId!, ...getDescendants(layoutRef.current, rootId!)]
+      let lastX = e.clientX, lastY = e.clientY
+      let dragged = false
+      const onMove = (ev: globalThis.PointerEvent) => {
+        if (!dragged) { dragged = true; pushHistory() }
+        const dLeft = ((ev.clientX - lastX) / r.width)  * 100
+        const dTop  = ((ev.clientY - lastY) / r.height) * 100
+        nudge(ids, dLeft, dTop)
+        lastX = ev.clientX; lastY = ev.clientY
+      }
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      return
+    }
+
+    let moved = false
     const onMove = (ev: globalThis.PointerEvent) => {
       const cx = clamp(ev.clientX - r.left, 0, r.width)
       const cy = clamp(ev.clientY - r.top,  0, r.height)
@@ -320,9 +345,8 @@ export function useBoardLayoutEditor<L>(
       window.removeEventListener('pointerup', onUp)
       setMarqueeRect(curr => {
         if (!moved || !curr) {
-          // Plain click on empty space → select the root container (e.g. the
-          // main board) when one is configured, otherwise clear the selection.
-          const rootId = optsRef.current.rootId
+          // Plain click → select the root container (the board) if configured,
+          // otherwise clear the selection.
           if (rootId) { setSelection([rootId]); setSelectedEl(rootId) }
           else        { clearSelection() }
           return null
@@ -341,7 +365,7 @@ export function useBoardLayoutEditor<L>(
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [isEditorMode, stageRef, clearSelection])
+  }, [isEditorMode, stageRef, clearSelection, getDescendants, nudge, pushHistory])
 
   // Global debug keys: ` toggles the editor, Z toggles the magnifier.
   useEffect(() => {

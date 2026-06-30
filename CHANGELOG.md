@@ -7,6 +7,12 @@ las fechas siguen el formato `YYYY-MM-DD`.
 ## 2026-06-30 (sesión 1)
 
 *   **Layout Editor**:
+    *   **Tablero Raíz**: El tablero principal ya no es fondo estático; es un elemento seleccionable y movible (`board_root`).
+    *   **Movimiento Jerárquico**: Arrastrar el tablero mueve automáticamente todo el conjunto de piezas anidadas.
+    *   **Viewport Flexible**: El stage ahora es neutro, permitiendo alinear el tablero principal con precisión mediante el editor.
+*   **UX**: Optimizado el `onPointerDown` para diferenciar entre selección de tablero, arrastre de grupo y *marquee selection*.
+
+*   **Layout Editor**:
     *   **Jerarquía**: Los tableros (Principal y PlayerDashboards) ahora son piezas seleccionables y desplazables.
     *   **Desplazamiento**: Implementado movimiento jerárquico; al mover un tablero, todos los elementos hijos (meeples, cartas, losetas) se desplazan de forma solidaria.
     *   **UX**: Selección de `board_root` mediante clic en zonas vacías del lienzo.

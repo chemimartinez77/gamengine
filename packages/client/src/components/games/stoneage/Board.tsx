@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   StoneAgeGameState, StoneAgePlayerState, StoneAgeHutTile,
   StoneAgeCivilizationCard, StoneAgeResourceType, StoneAgePlayerColor,
@@ -381,10 +381,25 @@ export function StoneAgeBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStoneAgeLayout])
 
+  // Track the stage width (px) so the board image can be sized as a fraction of
+  // it and scaled independently. Measured via ResizeObserver, no per-frame DOM.
+  const [stageW, setStageW] = useState(0)
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setStageW(el.clientWidth))
+    ro.observe(el)
+    setStageW(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
   // Per-element base sizes (px) scaled by each element's own scale value.
   const hutW    = (id: string) => Math.round(86 * getStoneAgeElementScale(layout, id))
   const cardW   = (id: string) => Math.round(76 * getStoneAgeElementScale(layout, id))
   const pboardW = (id: string) => Math.round(190 * getStoneAgeElementScale(layout, id))
+  // Board image width = full stage width × its own scale (default fills stage).
+  const boardW  = Math.round(stageW * getStoneAgeElementScale(layout, STONEAGE_ROOT_ID))
+  const boardSelected = selection.includes(STONEAGE_ROOT_ID)
 
   const activeName = stoneAgeState.players[stoneAgeState.activePlayerIndex]?.name ?? '…'
 
@@ -444,8 +459,10 @@ export function StoneAgeBoard({
       </header>
 
       <main>
-        {/* Main board — the real artwork as an absolute-positioned canvas.
-            Every piece (incl. player boards) is a child Zone placed on it. */}
+        {/* Stage = neutral viewport. The board artwork (board_root) is a
+            pointer-inert image driven by the stage (click=select, drag-when-
+            selected=move subtree, +/- = scale); every piece (incl. player
+            boards) is a Zone stacked on top. */}
         <div
           ref={stageRef}
           {...(layoutEditor.isEditing ? stageSelectionProps : {})}
@@ -453,12 +470,40 @@ export function StoneAgeBoard({
             position: 'relative',
             width: '100%',
             aspectRatio: BOARD_RATIO,
-            backgroundImage: `url(${BOARD_IMG})`,
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat',
           }}
-          className="overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/40"
+          className="overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/40 bg-[#1a0e06]"
         >
+          {/* The main board image. It is NOT an interactive Zone (so it never
+              blocks the stage's pointer handling); selection/move/scale of the
+              board are driven by the stage: click selects it, drag-when-selected
+              moves it + its subtree, +/- scales it. The image is pointer-inert
+              and shows a selection outline when board_root is selected. */}
+          {(() => {
+            const a = getStoneAgeAnchor(layout, STONEAGE_ROOT_ID) ?? { topPct: 50, leftPct: 50 }
+            const isSelected = boardSelected
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: `${a.topPct}%`, left: `${a.leftPct}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: boardW || '100%',
+                  pointerEvents: 'none',
+                  outline: isSelected ? '3px solid #3b82f6' : 'none',
+                  outlineOffset: 2,
+                  zIndex: 0,
+                }}
+              >
+                <img
+                  src={BOARD_IMG}
+                  alt="Tablero Stone Age"
+                  draggable={false}
+                  style={{ display: 'block', width: '100%', aspectRatio: BOARD_RATIO, userSelect: 'none' }}
+                />
+              </div>
+            )
+          })()}
+
           {/* 4 hut piles */}
           {stoneAgeState.hutPiles.map((pile, i) => {
             const id = `hut_pile_${i}`
