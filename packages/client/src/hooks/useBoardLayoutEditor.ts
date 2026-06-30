@@ -52,6 +52,18 @@ export interface UseBoardLayoutEditorOptions<L> {
   adjustStackOffset?: (layout: L, dir: 1 | -1) => L
   /** Optional: legacy export-to-console on plain `S`. */
   onExport?: (layout: L) => void
+  /**
+   * Optional hierarchy adapter: return the *direct* child ids of `id` (i.e. the
+   * elements whose `parentId === id`). When provided, dragging a container also
+   * drags its whole subtree. The hook walks this recursively for grandchildren.
+   */
+  getChildren?: (layout: L, id: string) => string[]
+  /**
+   * Optional id of a root container (e.g. the main board). When set, a plain
+   * click on empty stage space selects this id instead of clearing the
+   * selection — so the board itself can be dragged/scaled like any element.
+   */
+  rootId?: string
 }
 
 /** Marquee rectangle in stage-local px (null when no marquee is being drawn). */
@@ -180,12 +192,34 @@ export function useBoardLayoutEditor<L>(
     setSelectedEl(id)
   }, [])
 
+  // All descendant ids of `id` (children, grandchildren, …) per the optional
+  // hierarchy adapter. Excludes `id` itself; cycle-safe via a visited set.
+  const getDescendants = useCallback((L: L, id: string): string[] => {
+    const getChildren = optsRef.current.getChildren
+    if (!getChildren) return []
+    const out: string[] = []
+    const seen = new Set<string>([id])
+    const walk = (parent: string) => {
+      for (const child of getChildren(L, parent)) {
+        if (seen.has(child)) continue   // guard against cycles / repeats
+        seen.add(child)
+        out.push(child)
+        walk(child)
+      }
+    }
+    walk(id)
+    return out
+  }, [])
+
   // Move one or more elements' anchors by a (clamped) percentage delta.
+  // `ids` is de-duplicated so an element already present (e.g. a child also held
+  // in a multi-selection) is never shifted twice in a single move.
   const nudge = useCallback((ids: string[], dLeft: number, dTop: number) => {
     const { getAnchor, setAnchor } = optsRef.current
+    const unique = [...new Set(ids)]
     setLayout(L => {
       let next = L
-      for (const id of ids) {
+      for (const id of unique) {
         const a = getAnchor(next, id)
         if (!a) continue
         next = setAnchor(next, id, {
@@ -216,9 +250,21 @@ export function useBoardLayoutEditor<L>(
     // Drag the whole selection only if this zone is already part of it;
     // otherwise this is a fresh single-element drag (and resets the selection).
     const movingGroup = selectionRef.current.includes(id) && selectionRef.current.length > 1
-    const ids = movingGroup ? [...selectionRef.current] : [id]
+    const baseIds = movingGroup ? [...selectionRef.current] : [id]
     if (!movingGroup) { setSelection([id]); }
     setSelectedEl(id)
+
+    // Expand every dragged element with its descendants so containers carry
+    // their children. De-duplicate so a child already in the selection (or a
+    // shared descendant of two containers) is never moved twice.
+    const ids = [...new Set(
+      baseIds.flatMap(b => [b, ...getDescendants(layoutRef.current, b)]),
+    )]
+
+    // A lone leaf (single element, no children) uses absolute "centre follows
+    // cursor" placement; anything carrying others moves by incremental delta so
+    // the whole subtree keeps its relative offsets.
+    const absolutePlacement = ids.length === 1
 
     const r0 = stage.getBoundingClientRect()
     let lastX = e.clientX, lastY = e.clientY
@@ -226,17 +272,19 @@ export function useBoardLayoutEditor<L>(
 
     const onMove = (ev: globalThis.PointerEvent) => {
       if (!dragged) { dragged = true; pushHistory() }  // one history entry per drag
-      if (ids.length === 1) {
+      if (absolutePlacement) {
         // Single piece: centre follows the cursor (absolute placement).
         const leftPct = clamp(((ev.clientX - r0.left) / r0.width)  * 100, 0, 100)
         const topPct  = clamp(((ev.clientY - r0.top)  / r0.height) * 100, 0, 100)
         setLayout(L => optsRef.current.setAnchor(L, id, { leftPct: round2(leftPct), topPct: round2(topPct) }))
       } else {
-        // Group: shift every member by the same incremental delta.
+        // Container / group: shift every member by the same incremental delta.
         const dLeft = ((ev.clientX - lastX) / r0.width)  * 100
         const dTop  = ((ev.clientY - lastY) / r0.height) * 100
         nudge(ids, dLeft, dTop)
       }
+      // lastX/lastY update stays outside the branch so the delta stays accurate
+      // for the whole group across consecutive move events.
       lastX = ev.clientX; lastY = ev.clientY
     }
     const onUp = () => {
@@ -245,7 +293,7 @@ export function useBoardLayoutEditor<L>(
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [isEditorMode, stageRef, toggleInSelection, nudge, pushHistory])
+  }, [isEditorMode, stageRef, toggleInSelection, nudge, pushHistory, getDescendants])
 
   // Pointer-down on empty stage space → start a marquee (or clear on click).
   const startMarquee = useCallback((e: PointerEvent) => {
@@ -272,8 +320,11 @@ export function useBoardLayoutEditor<L>(
       window.removeEventListener('pointerup', onUp)
       setMarqueeRect(curr => {
         if (!moved || !curr) {
-          // Plain click on empty space → clear selection.
-          clearSelection()
+          // Plain click on empty space → select the root container (e.g. the
+          // main board) when one is configured, otherwise clear the selection.
+          const rootId = optsRef.current.rootId
+          if (rootId) { setSelection([rootId]); setSelectedEl(rootId) }
+          else        { clearSelection() }
           return null
         }
         // AABB hit-test every registered zone against the marquee.
@@ -356,18 +407,21 @@ export function useBoardLayoutEditor<L>(
       const big = e.shiftKey ? 10 : 1
       const stepX = (100 / W) * big   // % equivalent of 1px (×big) on each axis
       const stepY = (100 / H) * big
+      // Carry descendants of every target so containers nudge their subtree too.
+      const L0 = layoutRef.current
+      const moveTargets = [...new Set(targets.flatMap(t => [t, ...getDescendants(L0, t)]))]
       switch (e.key) {
-        case 'ArrowLeft':  pushHistory(); nudge(targets, -stepX, 0); break
-        case 'ArrowRight': pushHistory(); nudge(targets,  stepX, 0); break
-        case 'ArrowUp':    pushHistory(); nudge(targets, 0, -stepY); break
-        case 'ArrowDown':  pushHistory(); nudge(targets, 0,  stepY); break
+        case 'ArrowLeft':  pushHistory(); nudge(moveTargets, -stepX, 0); break
+        case 'ArrowRight': pushHistory(); nudge(moveTargets,  stepX, 0); break
+        case 'ArrowUp':    pushHistory(); nudge(moveTargets, 0, -stepY); break
+        case 'ArrowDown':  pushHistory(); nudge(moveTargets, 0,  stepY); break
         default: return
       }
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isEditorMode, selectedEl, lsKey, stageRef, nudge, clearSelection, pushHistory, undo, redo])
+  }, [isEditorMode, selectedEl, lsKey, stageRef, nudge, clearSelection, pushHistory, undo, redo, getDescendants])
 
   // Auto-save to the localStorage scratchpad on every change while editing.
   useEffect(() => {

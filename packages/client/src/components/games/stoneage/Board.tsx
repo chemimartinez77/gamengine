@@ -10,7 +10,7 @@ import { Zone, LayoutEditorToolbar } from '../../board'
 import {
   createStoneAgeLayout, fromStoneAgeShared, getStoneAgeAnchor, setStoneAgeAnchor,
   scaleStoneAgeElement, exportStoneAgeLayout, getStoneAgeElementScale,
-  STONEAGE_LS_KEY, type StoneAgeBoardLayout,
+  getStoneAgeChildren, STONEAGE_ROOT_ID, STONEAGE_LS_KEY, type StoneAgeBoardLayout,
 } from './boardLayout'
 // Dev sidecar (server-written); imported statically so Vite HMR re-ingests on save.
 import localStoneAgeLayout from './layout.json'
@@ -82,7 +82,6 @@ const PHASE_LABEL: Record<StoneAgeGamePhase, string> = {
   FEEDING:    'Alimentación',
 }
 
-const SECTION_TITLE = 'mb-3 text-xs font-bold uppercase tracking-widest text-white/50'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -368,6 +367,7 @@ export function StoneAgeBoard({
     stageRef, lsKey: STONEAGE_LS_KEY, load: loadStoneAgeLayout, factory: createStoneAgeLayout,
     getAnchor: getStoneAgeAnchor, setAnchor: setStoneAgeAnchor,
     scaleSelected: scaleStoneAgeElement, onExport: exportStoneAgeLayout,
+    getChildren: getStoneAgeChildren, rootId: STONEAGE_ROOT_ID,
   })
   // Server-persistence controller: Ctrl/⌘+S + floating "Guardar Layout" button.
   const layoutEditor = useEditorMode({
@@ -382,8 +382,9 @@ export function StoneAgeBoard({
   }, [localStoneAgeLayout])
 
   // Per-element base sizes (px) scaled by each element's own scale value.
-  const hutW  = (id: string) => Math.round(86 * getStoneAgeElementScale(layout, id))
-  const cardW = (id: string) => Math.round(76 * getStoneAgeElementScale(layout, id))
+  const hutW    = (id: string) => Math.round(86 * getStoneAgeElementScale(layout, id))
+  const cardW   = (id: string) => Math.round(76 * getStoneAgeElementScale(layout, id))
+  const pboardW = (id: string) => Math.round(190 * getStoneAgeElementScale(layout, id))
 
   const activeName = stoneAgeState.players[stoneAgeState.activePlayerIndex]?.name ?? '…'
 
@@ -442,71 +443,77 @@ export function StoneAgeBoard({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
-        {/* Main board — the real artwork as an absolute-positioned canvas. */}
-        <main>
-          <div
-            ref={stageRef}
-            {...(layoutEditor.isEditing ? stageSelectionProps : {})}
-            style={{
-              position: 'relative',
-              width: '100%',
-              aspectRatio: BOARD_RATIO,
-              backgroundImage: `url(${BOARD_IMG})`,
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-            }}
-            className="overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/40"
-          >
-            {/* 4 hut piles */}
-            {stoneAgeState.hutPiles.map((pile, i) => {
-              const id = `hut_pile_${i}`
-              return (
-                <Zone
-                  key={id}
-                  anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 25, leftPct: 25 + i * 17 }}
-                  editor={editorFor(id)}
-                >
-                  <BoardHutPile pile={pile} width={hutW(id)} />
-                </Zone>
-              )
-            })}
+      <main>
+        {/* Main board — the real artwork as an absolute-positioned canvas.
+            Every piece (incl. player boards) is a child Zone placed on it. */}
+        <div
+          ref={stageRef}
+          {...(layoutEditor.isEditing ? stageSelectionProps : {})}
+          style={{
+            position: 'relative',
+            width: '100%',
+            aspectRatio: BOARD_RATIO,
+            backgroundImage: `url(${BOARD_IMG})`,
+            backgroundSize: '100% 100%',
+            backgroundRepeat: 'no-repeat',
+          }}
+          className="overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/40"
+        >
+          {/* 4 hut piles */}
+          {stoneAgeState.hutPiles.map((pile, i) => {
+            const id = `hut_pile_${i}`
+            return (
+              <Zone
+                key={id}
+                anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 25, leftPct: 25 + i * 17 }}
+                editor={editorFor(id)}
+              >
+                <BoardHutPile pile={pile} width={hutW(id)} />
+              </Zone>
+            )
+          })}
 
-            {/* 4 civilization-card market spaces */}
-            {stoneAgeState.activeCards.map((card, i) => {
-              const id = `civ_card_${i}`
-              return (
-                <Zone
-                  key={id}
-                  anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 66, leftPct: 57 + i * 11 }}
-                  editor={editorFor(id)}
-                >
-                  <BoardCivCard card={card} width={cardW(id)} />
-                </Zone>
-              )
-            })}
+          {/* 4 civilization-card market spaces */}
+          {stoneAgeState.activeCards.map((card, i) => {
+            const id = `civ_card_${i}`
+            return (
+              <Zone
+                key={id}
+                anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 66, leftPct: 57 + i * 11 }}
+                editor={editorFor(id)}
+              >
+                <BoardCivCard card={card} width={cardW(id)} />
+              </Zone>
+            )
+          })}
 
-            {/* Marquee selection rectangle (only while drawing) */}
-            {marqueeStyle && <div style={marqueeStyle} />}
-          </div>
+          {/* Player boards — one Zone per seat, clickable & transformable. */}
+          {stoneAgeState.players.map((player, i) => {
+            const id = `player_board_${i}`
+            return (
+              <Zone
+                key={player.id}
+                anchor={getStoneAgeAnchor(layout, id) ?? { topPct: 14 + i * 24, leftPct: 92 }}
+                editor={editorFor(id)}
+              >
+                <div style={{ width: pboardW(id) }}>
+                  <PlayerDashboard
+                    player={player}
+                    isActive={i === stoneAgeState.activePlayerIndex}
+                  />
+                </div>
+              </Zone>
+            )
+          })}
 
-          <p className="mt-2 text-[11px] text-white/50">
-            Mazo de civilización: <span className="font-bold tabular-nums">{stoneAgeState.civilizationCardsDeck.length}</span> cartas restantes
-          </p>
-        </main>
+          {/* Marquee selection rectangle (only while drawing) */}
+          {marqueeStyle && <div style={marqueeStyle} />}
+        </div>
 
-        {/* Sidebar — player dashboards */}
-        <aside className="flex flex-col gap-3">
-          <h2 className={SECTION_TITLE}>Jugadores</h2>
-          {stoneAgeState.players.map((player, i) => (
-            <PlayerDashboard
-              key={player.id}
-              player={player}
-              isActive={i === stoneAgeState.activePlayerIndex}
-            />
-          ))}
-        </aside>
-      </div>
+        <p className="mt-2 text-[11px] text-white/50">
+          Mazo de civilización: <span className="font-bold tabular-nums">{stoneAgeState.civilizationCardsDeck.length}</span> cartas restantes
+        </p>
+      </main>
     </div>
   )
 }

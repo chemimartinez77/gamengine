@@ -24,11 +24,9 @@
       "Bash(rm -f ./_int-test2.mjs)",
       "Bash(rm -rf packages/client/dist)",
       "Bash(node -e \"try{require.resolve\\('sharp'\\);console.log\\('sharp: AVAILABLE'\\)}catch{console.log\\('sharp: NOT INSTALLED'\\)}\")",
-      "Bash(node -e \"const fs=require\\('fs'\\);const d='C:\\\\\\\\\\\\\\\\Users\\\\\\\\\\\\\\\\chemi\\\\\\\\\\\\\\\\Documents\\\\\\\\\\\\\\\\My Games\\\\\\\\\\\\\\\\Tabletop Simulator\\\\\\\\\\\\\\\\Mods\\\\\\\\\\\\\\\\Images\\\\\\\\\\\\\\\\Stone Age\\\\\\\\\\\\\\\\cabanyas';if\\(fs.existsSync\\(d\\)\\){const imgs=fs.readdirSync\\(d\\).filter\\(f=>/\\\\.\\(jpg|jpeg|png\\)$/i.test\\(f\\)\\);console.log\\('input dir EXISTS, images:',imgs.length\\);console.log\\(imgs.slice\\(0,8\\).join\\('\\\\n'\\)\\)}else{console.log\\('input dir MISSING'\\)}\")",
       "Bash(node -e ' *)",
       "Bash(node -e \"const sharp=require\\('sharp'\\); console.log\\('sharp loaded OK; libvips', sharp.versions.vips\\)\")",
       "Bash(node process_huts.js)",
-      "Read(//c/Users/chemi/Documents/My Games/Tabletop Simulator/Mods/Images/Stone Age/cabanyas/**)",
       "Bash(node regen_back.js)",
       "PowerShell(npx tsc -p packages/server/tsconfig.json --noEmit 2>&1)"
     ],

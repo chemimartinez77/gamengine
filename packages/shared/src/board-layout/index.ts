@@ -57,12 +57,16 @@ export interface BoardLayoutItem {
  *   `tokenStackOffset`). No specific key is mandated.
  * - `anchors` holds named placements keyed by item id. A value is either a single
  *   {@link Anchor} or an ordered list (e.g. Jaipur's 5 market slots).
+ * - `parents` (optional) describes a parent/child hierarchy: `childId → parentId`.
+ *   When present, the layout editor drags a container's whole subtree together.
  */
 export interface BoardLayout {
   /** Named scalar knobs (sizes/offsets), interpreted by the game. */
   scales: Record<string, number>;
   /** Named placements: `id → anchor` (single) or `id → anchor[]` (ordered group). */
   anchors: Record<string, Anchor | Anchor[]>;
+  /** Optional hierarchy: maps a child element id to its parent (container) id. */
+  parents?: Record<string, string>;
 }
 
 // ── Socket event contract: `board:layout:save` ───────────────────────────────

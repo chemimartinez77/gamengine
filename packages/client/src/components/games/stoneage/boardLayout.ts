@@ -16,10 +16,20 @@ export type StoneAgeBoardLayout = BoardLayout
 
 export const STONEAGE_LS_KEY = 'stoneage-board-layout'
 
+/** The root container id — the main board. Selecting it (a click on empty
+ *  stage space) lets you move/scale the whole board; it parents every piece. */
+export const STONEAGE_ROOT_ID = 'board_root'
+
+/** Max player-board zones the editor knows about (one per seat, up to 4). */
+export const STONEAGE_PLAYER_BOARD_IDS = [
+  'player_board_0', 'player_board_1', 'player_board_2', 'player_board_3',
+] as const
+
 /** Ordered ids the editor exposes as draggable zones. */
 export const STONEAGE_ZONE_IDS = [
   'hut_pile_0', 'hut_pile_1', 'hut_pile_2', 'hut_pile_3',
   'civ_card_0', 'civ_card_1', 'civ_card_2', 'civ_card_3',
+  ...STONEAGE_PLAYER_BOARD_IDS,
 ] as const
 
 // Legacy group-scale keys (pre multi-selection). Kept only for migration so old
@@ -38,9 +48,16 @@ export function isHutZone(id: string): boolean {
  * Every element carries its own scale under `scales[id]`, defaulting to 1.
  */
 export function createStoneAgeLayout(): StoneAgeBoardLayout {
+  // Every placeable piece is a child of the main board, so dragging/scaling the
+  // board carries the whole table. Player boards are also children.
+  const parents: Record<string, string> = {}
+  for (const id of STONEAGE_ZONE_IDS) parents[id] = STONEAGE_ROOT_ID
+
   return {
-    scales: Object.fromEntries(STONEAGE_ZONE_IDS.map(id => [id, 1])),
+    scales: Object.fromEntries([STONEAGE_ROOT_ID, ...STONEAGE_ZONE_IDS].map(id => [id, 1])),
     anchors: {
+      // The main board container — centred on the stage.
+      board_root: { topPct: 50, leftPct: 50 },
       // 4 hut piles — rough guess across the upper terrain bands.
       hut_pile_0: { topPct: 26, leftPct: 36 },
       hut_pile_1: { topPct: 24, leftPct: 53 },
@@ -51,7 +68,13 @@ export function createStoneAgeLayout(): StoneAgeBoardLayout {
       civ_card_1: { topPct: 66, leftPct: 68 },
       civ_card_2: { topPct: 66, leftPct: 79 },
       civ_card_3: { topPct: 66, leftPct: 90 },
+      // Player boards — a stacked column down the right edge of the stage.
+      player_board_0: { topPct: 14, leftPct: 92 },
+      player_board_1: { topPct: 38, leftPct: 92 },
+      player_board_2: { topPct: 62, leftPct: 92 },
+      player_board_3: { topPct: 86, leftPct: 92 },
     },
+    parents,
   }
 }
 
@@ -65,6 +88,17 @@ export function getStoneAgeAnchor(L: StoneAgeBoardLayout, id: string): Anchor | 
 /** Return a new layout with one anchor replaced. */
 export function setStoneAgeAnchor(L: StoneAgeBoardLayout, id: string, a: Anchor): StoneAgeBoardLayout {
   return { ...L, anchors: { ...L.anchors, [id]: a } }
+}
+
+/**
+ * Direct children of `id` per the layout's `parents` map (childId → parentId).
+ * Used by the editor's hierarchy adapter so dragging a container carries its
+ * subtree; the hook recurses for grandchildren on its own.
+ */
+export function getStoneAgeChildren(L: StoneAgeBoardLayout, id: string): string[] {
+  const parents = L.parents
+  if (!parents) return []
+  return Object.keys(parents).filter(child => parents[child] === id)
 }
 
 /** Resolve a scale value (defaulting to 1) for any of the scales.* keys. */
@@ -115,6 +149,9 @@ export function fromStoneAgeShared(shared: Partial<StoneAgeBoardLayout> | undefi
   return {
     scales,
     anchors: { ...d.anchors, ...(shared.anchors ?? {}) },
+    // Default hierarchy from the factory, overlaid by any declared in the
+    // sidecar/scratchpad (so old sidecars still get the board → pieces tree).
+    parents: { ...d.parents, ...(shared.parents ?? {}) },
   }
 }
 

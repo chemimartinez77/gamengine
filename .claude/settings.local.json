@@ -13,7 +13,18 @@
       "Bash(taskkill /PID 25256 /F)",
       "PowerShell(Stop-Process -Id 25256 -Force)",
       "Bash(npx tsc *)",
-      "PowerShell(node node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit)"
+      "PowerShell(node node_modules/typescript/bin/tsc -p packages/client/tsconfig.json --noEmit)",
+      "Bash(npm *)",
+      "PowerShell(npm *)",
+      "Bash(npx *)",
+      "PowerShell(npx *)",
+      "Bash(node *)",
+      "PowerShell(node *)",
+      "Bash(ls *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "PowerShell(git status)",
+      "PowerShell(git log *)"
     ]
   }
 }

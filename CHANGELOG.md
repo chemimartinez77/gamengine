@@ -6,6 +6,12 @@ las fechas siguen el formato `YYYY-MM-DD`.
 
 ## 2026-06-30 (sesión 1)
 
+*   **Layout Editor**:
+    *   **Jerarquía**: Los tableros (Principal y PlayerDashboards) ahora son piezas seleccionables y desplazables.
+    *   **Desplazamiento**: Implementado movimiento jerárquico; al mover un tablero, todos los elementos hijos (meeples, cartas, losetas) se desplazan de forma solidaria.
+    *   **UX**: Selección de `board_root` mediante clic en zonas vacías del lienzo.
+*   **Refactor de UI**: Los tableros de jugador han migrado de la barra lateral al *stage* principal, permitiendo una maquetación unificada sobre el lienzo.
+
 ### Stone Age Integration & Layout Editor Overhaul
 
 *   **Game Engine**: Implementado **Stone Age** (motor completo y UI con artes oficiales).
