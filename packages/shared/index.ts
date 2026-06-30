@@ -37,6 +37,14 @@ export {
   enumerateLegalVirusMoves, describeVirusMove, describeVirusDiscard,
 } from './src/games/virus/moves.js';
 
+export type {
+  StoneAgeResourceType, StoneAgePlayerColor, StoneAgeGamePhase,
+  StoneAgeMeepleState, StoneAgeToolState,
+  StoneAgeFixedCost, StoneAgeVariableCost,
+  StoneAgeHutTile, StoneAgeCivilizationCard,
+  StoneAgePlayerState, StoneAgeGameState,
+} from './src/games/stoneage/index.js';
+
 // Generic visual layout editor — shared placement contracts & save event payloads
 export type {
   Anchor, LayoutItemKind, BoardLayoutItem, BoardLayout,

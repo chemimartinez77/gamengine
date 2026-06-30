@@ -1,8 +1,9 @@
 import type { GameState, GameEngine, GameMove, Move, Player, RoomSummary, GameType } from '@gamengine/shared';
 import { GameError, ticTacToeEngine, mancalaEngine } from '@gamengine/shared';
-import { splendorGameEngine } from '../games/splendor/gameEngine.js';
-import { jaipurGameEngine } from '../games/jaipur/gameEngine.js';
-import { virusGameEngine } from '../games/virus/gameEngine.js';
+import { splendorGameEngine }   from '../games/splendor/gameEngine.js';
+import { jaipurGameEngine }     from '../games/jaipur/gameEngine.js';
+import { virusGameEngine }      from '../games/virus/gameEngine.js';
+import { stoneAgeGameEngine }   from '../games/stoneage/gameEngine.js';
 
 export type RoomStatus = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
@@ -14,6 +15,7 @@ const ENGINE_REGISTRY: Record<GameType, GameEngine> = {
   SPLENDOR:    splendorGameEngine,
   JAIPUR:      jaipurGameEngine,
   VIRUS:       virusGameEngine,
+  STONE_AGE:   stoneAgeGameEngine,
 };
 
 export class Room {

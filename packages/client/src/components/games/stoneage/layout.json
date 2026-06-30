@@ -1,0 +1,40 @@
+{
+  "scales": {
+    "hutScale": 1.9,
+    "civScale": 2.5
+  },
+  "anchors": {
+    "hut_pile_0": {
+      "leftPct": 33.91,
+      "topPct": 84.57
+    },
+    "hut_pile_1": {
+      "leftPct": 24.26,
+      "topPct": 84.58
+    },
+    "hut_pile_2": {
+      "leftPct": 43.58,
+      "topPct": 84.49
+    },
+    "hut_pile_3": {
+      "leftPct": 14.71,
+      "topPct": 84.58
+    },
+    "civ_card_0": {
+      "leftPct": 57.07,
+      "topPct": 81.35
+    },
+    "civ_card_1": {
+      "leftPct": 67.91,
+      "topPct": 81.5
+    },
+    "civ_card_2": {
+      "leftPct": 78.79,
+      "topPct": 81.53
+    },
+    "civ_card_3": {
+      "leftPct": 89.32,
+      "topPct": 81.48
+    }
+  }
+}

@@ -1,11 +1,12 @@
 import type { GameState, GameType, Move, Player } from '@gamengine/shared'
-import type { SplendorGameState, JaipurGameState, JaipurMove, VirusGameState, VirusMove } from '@gamengine/shared'
+import type { SplendorGameState, JaipurGameState, JaipurMove, VirusGameState, VirusMove, StoneAgeGameState } from '@gamengine/shared'
 import type { AppSocket } from '../context/SocketContext'
 import { TicTacToeGrid } from './games/tictactoe/TicTacToeGrid'
 import { MancalaBoard } from './games/mancala/MancalaBoard'
 import { SplendorBoard } from './games/splendor/SplendorBoard'
 import { JaipurBoard } from './games/jaipur/JaipurBoard'
 import { VirusBoard } from './games/virus/VirusBoard'
+import { StoneAgeBoard } from './games/stoneage/Board'
 
 interface GameBoardProps {
   socket:          AppSocket
@@ -137,6 +138,22 @@ export function GameBoard({
     )
   }
 
+  // Stone Age manages its own full-page layout
+  if (currentGameType === 'STONE_AGE') {
+    return (
+      <StoneAgeBoard
+        stoneAgeState={gameState.board as StoneAgeGameState}
+        myPlayerId={myPlayerId}
+        isMyTurn={isMyTurn}
+        gameOver={gameOver}
+        onLeave={leaveRoom}
+        onRematch={requestRematch}
+        rematchVotes={rematchVotes}
+        playerCount={players.length}
+      />
+    )
+  }
+
   let statusText = ''
   if (gameState.winner === 'DRAW') {
     statusText = "It's a draw!"
@@ -158,11 +175,12 @@ export function GameBoard({
     '#333'
 
   const GAME_TITLES: Record<GameType, string> = {
-    TIC_TAC_TOE: 'Tic-Tac-Toe',
+    TIC_TAC_TOE: 'Tres en raya',
     MANCALA:     'Mancala',
     SPLENDOR:    'Splendor',
     JAIPUR:      'Jaipur',
     VIRUS:       'Virus!',
+    STONE_AGE:   'Stone Age',
   }
 
   function renderBoard() {

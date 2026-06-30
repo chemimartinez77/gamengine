@@ -1,0 +1,13 @@
+/*
+ * Tailwind CSS (v4) — utilities only.
+ *
+ * Preflight (the global CSS reset) is intentionally NOT imported: the rest of the
+ * app styles with inline `style` objects and a global reset would alter those
+ * carefully-tuned game boards (Jaipur, Virus…). Importing just the theme tokens +
+ * utilities gives Tailwind classes to new components (Stone Age) without touching
+ * existing ones. To opt into the full reset later, replace the two imports below
+ * with a single `@import "tailwindcss";`.
+ */
+@layer theme, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);

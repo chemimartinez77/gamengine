@@ -13,15 +13,25 @@ import type { LayoutSaveState } from '../../hooks/useEditorMode'
 // established convention instead of Tailwind utility classes.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** One named scale group shown in the toolbar (e.g. "Cabañas" vs "Cartas"). */
+export interface ScaleIndicator {
+  label:  string
+  value:  number
+  /** Highlighted when the current selection drives this group's +/- scaling. */
+  active: boolean
+}
+
 interface LayoutEditorToolbarProps {
   saveState:        LayoutSaveState
   errorMessage:     string | null
   lastWrittenPath?: string | null
   onSave:           () => void
+  /** Optional per-group scale readouts (decoupled scales). */
+  scales?:          ScaleIndicator[]
 }
 
 export function LayoutEditorToolbar({
-  saveState, errorMessage, lastWrittenPath, onSave,
+  saveState, errorMessage, lastWrittenPath, onSave, scales,
 }: LayoutEditorToolbarProps) {
   const saving  = saveState === 'saving'
   const success = saveState === 'success'
@@ -46,6 +56,23 @@ export function LayoutEditorToolbar({
           <kbd style={styles.kbd}>Ctrl/⌘ + S</kbd> para guardar
         </span>
       </div>
+
+      {scales && scales.length > 0 && (
+        <div style={styles.scaleRow}>
+          {scales.map(s => (
+            <span
+              key={s.label}
+              style={{ ...styles.scaleChip, ...(s.active ? styles.scaleChipActive : null) }}
+              title={s.active ? 'Grupo activo: usa + / − para escalar' : undefined}
+            >
+              {s.label}: <strong>{s.value.toFixed(1)}×</strong>
+            </span>
+          ))}
+          <span style={styles.scaleHint}>
+            <kbd style={styles.kbd}>+ / −</kbd> escala el grupo seleccionado
+          </span>
+        </div>
+      )}
 
       {success && lastWrittenPath && (
         <div style={styles.okText}>Guardado en {lastWrittenPath}</div>
@@ -85,4 +112,15 @@ const styles: Record<string, CSSProperties> = {
   },
   okText:  { fontSize: 11, color: '#86efac', wordBreak: 'break-all' },
   errText: { fontSize: 12, color: '#fca5a5', fontWeight: 600 },
+  scaleRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  scaleChip: {
+    fontSize: 11, color: '#9fb4d4',
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap',
+  },
+  scaleChipActive: {
+    color: '#cfe0ff', background: 'rgba(59,130,246,0.22)',
+    border: '1px solid rgba(59,130,246,0.75)',
+  },
+  scaleHint: { fontSize: 10, color: '#7e8fb0', whiteSpace: 'nowrap' },
 }

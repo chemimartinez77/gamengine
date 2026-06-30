@@ -8,6 +8,7 @@ const GAME_TYPE_LABELS: Record<GameType, string> = {
   SPLENDOR:    'Splendor',
   JAIPUR:      'Jaipur',
   VIRUS:       'Virus!',
+  STONE_AGE:   'Stone Age',
 }
 
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
@@ -141,6 +142,31 @@ const INSTRUCTIONS: Record<GameType, { title: string; rules: Rule[] }> = {
       {
         heading: 'Tratamientos',
         body: 'Transplante: intercambia un órgano entre dos jugadores. Ladrón: roba un órgano rival. Contagio: propaga tus virus. Guante: todos descartan la mano. Error Médico: intercambia todo tu cuerpo con el de un rival.',
+      },
+    ],
+  },
+  STONE_AGE: {
+    title: 'Cómo jugar — Stone Age',
+    rules: [
+      {
+        heading: 'Objetivo',
+        body: 'Acumula más puntos de victoria que tus rivales comprando cabañas y cartas de civilización. La partida termina cuando se agota una pila de cabañas o el mazo de cartas.',
+      },
+      {
+        heading: 'Colocación de trabajadores',
+        body: 'En tu turno envías trabajadores a los distintos lugares del tablero: bosque, arcillares, cantera, río (materiales) y campo de cultivo (comida). También puedes ir a la cabaña de herramientas, al campo de caza o a espacios de cartas y cabañas.',
+      },
+      {
+        heading: 'Resolución',
+        body: 'Cada jugador recoge recursos tirando tantos dados como trabajadores tenga en cada zona. El resultado total se divide entre el valor del recurso (madera ÷2, arcilla ÷3, piedra ÷4, oro ÷5) para obtener la cantidad obtenida.',
+      },
+      {
+        heading: 'Alimentación',
+        body: 'Al final de cada ronda debes alimentar a tus trabajadores: 1 comida por meeple. Si no tienes suficiente, pierdes 10 puntos por cada comida que te falte. El nivel agrícola te produce comida automática cada ronda.',
+      },
+      {
+        heading: 'Cabañas y cartas',
+        body: 'Compra cabañas pagando los recursos indicados para ganar puntos fijos. Las cartas de civilización dan puntos inmediatos o multiplicadores al final de la partida según las colecciones que hayas reunido.',
       },
     ],
   },

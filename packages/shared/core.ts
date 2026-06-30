@@ -1,4 +1,4 @@
-export type GameType = 'TIC_TAC_TOE' | 'MANCALA' | 'SPLENDOR' | 'JAIPUR' | 'VIRUS';
+export type GameType = 'TIC_TAC_TOE' | 'MANCALA' | 'SPLENDOR' | 'JAIPUR' | 'VIRUS' | 'STONE_AGE';
 
 export type BotDifficulty = 'MUY_FACIL' | 'FACIL' | 'NORMAL' | 'DIFICIL' | 'MUY_DIFICIL';
 
